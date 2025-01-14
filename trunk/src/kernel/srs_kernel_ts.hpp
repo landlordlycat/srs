@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_KERNEL_TS_HPP
@@ -107,8 +107,8 @@ enum SrsTsStream
     // ISO/IEC 11172 Video
     // ITU-T Rec. H.262 | ISO/IEC 13818-2 Video or ISO/IEC 11172-2 constrained parameter video stream
     // ISO/IEC 11172 Audio
+    SrsTsStreamAudioMp3 = 0x03,
     // ISO/IEC 13818-3 Audio
-    SrsTsStreamAudioMp3 = 0x04,
     // ITU-T Rec. H.222.0 | ISO/IEC 13818-1 private_sections
     // ITU-T Rec. H.222.0 | ISO/IEC 13818-1 PES packets containing private data
     // ISO/IEC 13522 MHEG
@@ -825,14 +825,14 @@ public:
     // presentation unit k of elementary stream n. The value of PTS is specified in units of the period of the system clock
     // frequency divided by 300 (yielding 90 kHz). The presentation time is derived from the PTS according to equation 2-11
     // below. Refer to 2.7.4 for constraints on the frequency of coding presentation timestamps.
-    // ===========1B
+    // --------------1B
     // 4bits const
     // 3bits PTS [32..30]
     // 1bit const '1'
-    // ===========2B
+    // --------------2B
     // 15bits PTS [29..15]
     // 1bit const '1'
-    // ===========2B
+    // --------------2B
     // 15bits PTS [14..0]
     // 1bit const '1'
     int64_t pts; // 33bits
@@ -841,14 +841,14 @@ public:
     // The DTS is a 33-bit number coded in three separate fields. It indicates the decoding time,
     // td n (j), in the system target decoder of an access unit j of elementary stream n. The value of DTS is specified in units of
     // the period of the system clock frequency divided by 300 (yielding 90 kHz).
-    // ===========1B
+    // --------------1B
     // 4bits const
     // 3bits DTS [32..30]
     // 1bit const '1'
-    // ===========2B
+    // --------------2B
     // 15bits DTS [29..15]
     // 1bit const '1'
-    // ===========2B
+    // --------------2B
     // 15bits DTS [14..0]
     // 1bit const '1'
     int64_t dts; // 33bits
@@ -1258,9 +1258,8 @@ class SrsTsContextWriter
 {
 private:
     // User must config the codec in right way.
-    // @see https://github.com/ossrs/srs/issues/301
-    SrsVideoCodecId vcodec;
-    SrsAudioCodecId acodec;
+    SrsVideoCodecId vcodec_;
+    SrsAudioCodecId acodec_;
 private:
     SrsTsContext* context;
     ISrsStreamWriter* writer;
@@ -1275,8 +1274,12 @@ public:
     virtual srs_error_t write_video(SrsTsMessage* video);
 public:
     // Get or update the video codec of ts muxer.
-    virtual SrsVideoCodecId video_codec();
-    virtual void update_video_codec(SrsVideoCodecId v);
+    virtual SrsVideoCodecId vcodec();
+    virtual void set_vcodec(SrsVideoCodecId v);
+public:
+    // Get and set the audio codec.
+    SrsAudioCodecId acodec();
+    void set_acodec(SrsAudioCodecId v);
 };
 
 // Used for HLS Encryption
@@ -1328,6 +1331,9 @@ class SrsTsTransmuxer
 {
 private:
     ISrsStreamWriter* writer;
+    bool has_audio_;
+    bool has_video_;
+    bool guess_has_av_;
 private:
     SrsFormat* format;
     SrsTsMessageCache* tsmc;
@@ -1336,6 +1342,10 @@ private:
 public:
     SrsTsTransmuxer();
     virtual ~SrsTsTransmuxer();
+public:
+    void set_has_audio(bool v);
+    void set_has_video(bool v);
+    void set_guess_has_av(bool v);
 public:
     // Initialize the underlayer file stream.
     // @param fw the writer to use for ts encoder, user must free it.

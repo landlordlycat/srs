@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #include <srs_protocol_utility.hpp>
@@ -24,6 +24,7 @@ using namespace std;
 #include <srs_protocol_rtmp_stack.hpp>
 #include <srs_protocol_io.hpp>
 
+#include <limits.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
@@ -45,16 +46,22 @@ using namespace std;
 
 void srs_discovery_tc_url(string tcUrl, string& schema, string& host, string& vhost, string& app, string& stream, int& port, string& param)
 {
+    // For compatibility, transform
+    //      rtmp://ip/app...vhost...VHOST/stream
+    // to typical format:
+    //      rtmp://ip/app?vhost=VHOST/stream
+    string fullUrl = srs_string_replace(tcUrl, "...vhost...", "?vhost=");
+
     // Standard URL is:
     //      rtmp://ip/app/app2/stream?k=v
     // Where after last slash is stream.
-    string fullUrl = tcUrl;
     fullUrl += stream.empty() ? "/" : (stream.at(0) == '/' ? stream : "/" + stream);
     fullUrl += param.empty() ? "" : (param.at(0) == '?' ? param : "?" + param);
 
     // First, we covert the FMLE URL to standard URL:
-    //      rtmp://ip/app/app2?k=v/stream
-    size_t pos_query = fullUrl.find("?");
+    //      rtmp://ip/app/app2?k=v/stream , or:
+    //      rtmp://ip/app/app2#k=v/stream
+    size_t pos_query = fullUrl.find_first_of("?#");
     size_t pos_rslash = fullUrl.rfind("/");
     if (pos_rslash != string::npos && pos_query != string::npos && pos_query < pos_rslash) {
         fullUrl = fullUrl.substr(0, pos_query) // rtmp://ip/app/app2
@@ -81,6 +88,7 @@ void srs_discovery_tc_url(string tcUrl, string& schema, string& host, string& vh
     port = uri.get_port();
     stream = srs_path_basename(uri.get_path());
     param = uri.get_query().empty() ? "" : "?" + uri.get_query();
+    param += uri.get_fragment().empty() ? "" : "#" + uri.get_fragment();
 
     // Parse app without the prefix slash.
     app = srs_path_dirname(uri.get_path());
@@ -231,8 +239,8 @@ string srs_generate_stream_with_query(string host, string vhost, string stream, 
         }
     }
     
-    // Remove the start & when param is empty.
-    query = srs_string_trim_start(query, "&");
+    // Remove the start & and ? when param is empty.
+    query = srs_string_trim_start(query, "&?");
 
     // Prefix query with ?.
     if (!query.empty() && !srs_string_starts_with(query, "?")) {
@@ -665,17 +673,6 @@ bool srs_net_device_is_internet(const sockaddr* addr)
 }
 
 vector<SrsIPAddress*> _srs_system_ips;
-void srs_free_global_system_ips()
-{
-    vector<SrsIPAddress*>& ips = _srs_system_ips;
-
-    // Release previous IPs.
-    for (int i = 0; i < (int)ips.size(); i++) {
-        SrsIPAddress* ip = ips[i];
-        srs_freep(ip);
-    }
-    ips.clear();
-}
 
 void discover_network_iface(ifaddrs* cur, vector<SrsIPAddress*>& ips, stringstream& ss0, stringstream& ss1, bool ipv6, bool loopback)
 {
@@ -713,9 +710,6 @@ void discover_network_iface(ifaddrs* cur, vector<SrsIPAddress*>& ips, stringstre
 
 void retrieve_local_ips()
 {
-    // Release previous IPs.
-    srs_free_global_system_ips();
-
     vector<SrsIPAddress*>& ips = _srs_system_ips;
 
     // Get the addresses.
@@ -912,13 +906,12 @@ srs_error_t srs_ioutil_read_all(ISrsReader* in, std::string& content)
     srs_error_t err = srs_success;
 
     // Cache to read, it might cause coroutine switch, so we use local cache here.
-    char* buf = new char[SRS_HTTP_READ_CACHE_BYTES];
-    SrsAutoFreeA(char, buf);
+    SrsUniquePtr<char[]> buf(new char[SRS_HTTP_READ_CACHE_BYTES]);
 
     // Whatever, read util EOF.
     while (true) {
         ssize_t nb_read = 0;
-        if ((err = in->read(buf, SRS_HTTP_READ_CACHE_BYTES, &nb_read)) != srs_success) {
+        if ((err = in->read(buf.get(), SRS_HTTP_READ_CACHE_BYTES, &nb_read)) != srs_success) {
             int code = srs_error_code(err);
             if (code == ERROR_SYSTEM_FILE_EOF || code == ERROR_HTTP_RESPONSE_EOF || code == ERROR_HTTP_REQUEST_EOF
                 || code == ERROR_HTTP_STREAM_EOF
@@ -930,7 +923,7 @@ srs_error_t srs_ioutil_read_all(ISrsReader* in, std::string& content)
         }
 
         if (nb_read > 0) {
-            content.append(buf, nb_read);
+            content.append(buf.get(), nb_read);
         }
     }
 
@@ -955,3 +948,63 @@ utsname* srs_get_system_uname_info()
     return system_info;
 }
 #endif
+
+string srs_string_dumps_hex(const std::string& str)
+{
+    return srs_string_dumps_hex(str.c_str(), str.size());
+}
+
+string srs_string_dumps_hex(const char* str, int length)
+{
+    return srs_string_dumps_hex(str, length, INT_MAX);
+}
+
+string srs_string_dumps_hex(const char* str, int length, int limit)
+{
+    return srs_string_dumps_hex(str, length, limit, ' ', 128, '\n');
+}
+
+string srs_string_dumps_hex(const char* str, int length, int limit, char seperator, int line_limit, char newline)
+{
+    // 1 byte trailing '\0'.
+    const int LIMIT = 1024*16 + 1;
+    static char buf[LIMIT];
+
+    int len = 0;
+    for (int i = 0; i < length && i < limit && len < LIMIT; ++i) {
+        int nb = snprintf(buf + len, LIMIT - len, "%02x", (uint8_t)str[i]);
+        if (nb <= 0 || nb >= LIMIT - len) {
+            break;
+        }
+        len += nb;
+
+        // Only append seperator and newline when not last byte.
+        if (i < length - 1 && i < limit - 1 && len < LIMIT) {
+            if (seperator) {
+                buf[len++] = seperator;
+            }
+
+            if (newline && line_limit && i > 0 && ((i + 1) % line_limit) == 0) {
+                buf[len++] = newline;
+            }
+        }
+    }
+
+    // Empty string.
+    if (len <= 0) {
+        return "";
+    }
+
+    // If overflow, cut the trailing newline.
+    if (newline && len >= LIMIT - 2 && buf[len - 1] == newline) {
+        len--;
+    }
+
+    // If overflow, cut the trailing seperator.
+    if (seperator && len >= LIMIT - 3 && buf[len - 1] == seperator) {
+        len--;
+    }
+
+    return string(buf, len);
+}
+

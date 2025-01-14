@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_KERNEL_BUFFER_HPP
@@ -174,6 +174,15 @@ public:
 public:
     bool empty();
     int8_t read_bit();
+    bool require_bits(int n);
+    int left_bits();
+    void skip_bits(int n);
+    int32_t read_bits(int n);
+    int8_t read_8bits();
+    int16_t read_16bits();
+    int32_t read_32bits();
+    srs_error_t read_bits_ue(uint32_t& v);
+    srs_error_t read_bits_se(int32_t& v);
 };
 
 #endif

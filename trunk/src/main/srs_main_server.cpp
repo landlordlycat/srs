@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #include <srs_core.hpp>
@@ -24,6 +24,10 @@ using namespace std;
 #include <gperftools/malloc_extension.h>
 #endif
 
+#ifdef SRS_SANITIZER_LOG
+#include <sanitizer/asan_interface.h>
+#endif
+
 #include <unistd.h>
 using namespace std;
 
@@ -38,6 +42,7 @@ using namespace std;
 #include <srs_kernel_file.hpp>
 #include <srs_app_hybrid.hpp>
 #include <srs_app_threads.hpp>
+#include <srs_kernel_error.hpp>
 
 #ifdef SRS_RTC
 #include <srs_app_rtc_conn.hpp>
@@ -52,7 +57,6 @@ using namespace std;
 // pre-declare
 srs_error_t run_directly_or_daemon();
 srs_error_t run_in_thread_pool();
-srs_error_t srs_detect_docker();
 void show_macro_features();
 
 // @global log and context.
@@ -74,8 +78,15 @@ bool _srs_config_by_env = false;
 // The binary name of SRS.
 const char* _srs_binary = NULL;
 
-// Free global data, for address sanitizer.
-extern void srs_free_global_system_ips();
+// @global Other variables.
+bool _srs_in_docker = false;
+
+#ifdef SRS_SANITIZER_LOG
+extern void asan_report_callback(const char* str);
+#endif
+
+extern SrsPps* _srs_pps_cids_get;
+extern SrsPps* _srs_pps_cids_set;
 
 /**
  * main entrance.
@@ -86,6 +97,13 @@ srs_error_t do_main(int argc, char** argv, char** envp)
 
     // TODO: Might fail if change working directory.
     _srs_binary = argv[0];
+
+    // For sanitizer on macOS, to avoid the warning on startup.
+#if defined(SRS_OSX) && defined(SRS_SANITIZER)
+    if (!getenv("MallocNanoZone")) {
+        fprintf(stderr, "Asan: Please setup the env MallocNanoZone=0 to disable the warning, see https://stackoverflow.com/a/70209891/17679565\n");
+    }
+#endif
 
     // Initialize global and thread-local variables.
     if ((err = srs_global_initialize()) != srs_success) {
@@ -115,11 +133,6 @@ srs_error_t do_main(int argc, char** argv, char** envp)
 #ifdef SRS_GPERF_MP
 #warning "gmp is not used for memory leak, please use gmc instead."
 #endif
-
-    // Ignore any error while detecting docker.
-    if ((err = srs_detect_docker()) != srs_success) {
-        srs_error_reset(err);
-    }
     
     // never use srs log(srs_trace, srs_error, etc) before config parse the option,
     // which will load the log config and apply it.
@@ -221,18 +234,27 @@ srs_error_t do_main(int argc, char** argv, char** envp)
         srs_trace("tcmalloc: set release-rate %.2f=>%.2f", otrr, trr);
     }
 #endif
-    
+
+#ifdef SRS_SANITIZER_LOG
+    __asan_set_error_report_callback(asan_report_callback);
+#endif
+
     if ((err = run_directly_or_daemon()) != srs_success) {
         return srs_error_wrap(err, "run");
     }
-
-    srs_free_global_system_ips();
 
     return err;
 }
 
 int main(int argc, char** argv, char** envp)
 {
+#ifdef SRS_SANITIZER
+    // Setup the primordial stack for st. Use the current variable address as the stack top.
+    // This is not very accurate but sufficient.
+    void* p = NULL;
+    srs_set_primordial_stack(&p);
+#endif
+
     srs_error_t err = do_main(argc, argv, envp);
 
     if (err != srs_success) {
@@ -380,48 +402,9 @@ void show_macro_features()
 #endif
 }
 
-// Detect docker by https://stackoverflow.com/a/41559867
-bool _srs_in_docker = false;
-srs_error_t srs_detect_docker()
-{
-    srs_error_t err = srs_success;
-
-    _srs_in_docker = false;
-
-    SrsFileReader fr;
-    if ((err = fr.open("/proc/1/cgroup")) != srs_success) {
-        return err;
-    }
-
-    ssize_t nn;
-    char buf[1024];
-    if ((err = fr.read(buf, sizeof(buf), &nn)) != srs_success) {
-        return err;
-    }
-
-    if (nn <= 0) {
-        return err;
-    }
-
-    string s(buf, nn);
-    if (srs_string_contains(s, "/docker")) {
-        _srs_in_docker = true;
-    }
-
-    return err;
-}
-
 srs_error_t run_directly_or_daemon()
 {
     srs_error_t err = srs_success;
-
-    // Try to load the config if docker detect failed.
-    if (!_srs_in_docker) {
-        _srs_in_docker = _srs_config->get_in_docker();
-        if (_srs_in_docker) {
-            srs_trace("enable in_docker by config");
-        }
-    }
 
     // Load daemon from config, disable it for docker.
     // @see https://github.com/ossrs/srs/issues/1594
@@ -452,7 +435,6 @@ srs_error_t run_directly_or_daemon()
         int status = 0;
         waitpid(pid, &status, 0);
         srs_trace("grandpa process exit.");
-        srs_free_global_system_ips();
         exit(0);
     }
     
@@ -465,7 +447,6 @@ srs_error_t run_directly_or_daemon()
     
     if(pid > 0) {
         srs_trace("father process exit");
-        srs_free_global_system_ips();
         exit(0);
     }
     
@@ -482,17 +463,17 @@ srs_error_t run_directly_or_daemon()
 srs_error_t run_hybrid_server(void* arg);
 srs_error_t run_in_thread_pool()
 {
-#ifdef SRS_SINGLE_THREAD
-    srs_trace("Run in single thread mode");
-    return run_hybrid_server(NULL);
-#else
     srs_error_t err = srs_success;
 
-    // Initialize the thread pool.
+    // Initialize the thread pool, even if we run in single thread mode.
     if ((err = _srs_thread_pool->initialize()) != srs_success) {
         return srs_error_wrap(err, "init thread pool");
     }
 
+#ifdef SRS_SINGLE_THREAD
+    srs_trace("Run in single thread mode");
+    return run_hybrid_server(NULL);
+#else
     // Start the hybrid service worker thread, for RTMP and RTC server, etc.
     if ((err = _srs_thread_pool->execute("hybrid", run_hybrid_server, (void*)NULL)) != srs_success) {
         return srs_error_wrap(err, "start hybrid server thread");
@@ -530,9 +511,11 @@ srs_error_t run_hybrid_server(void* /*arg*/)
         return srs_error_wrap(err, "init circuit breaker");
     }
 
+#ifdef SRS_APM
     // When startup, create a span for server information.
     ISrsApmSpan* span = _srs_apm->span("main")->set_kind(SrsApmKindServer);
     srs_freep(span);
+#endif
 
     // Should run util hybrid servers all done.
     if ((err = _srs_hybrid->run()) != srs_success) {

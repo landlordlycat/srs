@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #include <srs_app_http_static.hpp>
@@ -41,35 +41,49 @@ using namespace std;
 
 #define SRS_CONTEXT_IN_HLS "hls_ctx"
 
-SrsM3u8CtxInfo::SrsM3u8CtxInfo()
+SrsHlsVirtualConn::SrsHlsVirtualConn()
 {
     req = NULL;
+    interrupt = false;
 }
 
-SrsM3u8CtxInfo::~SrsM3u8CtxInfo()
+SrsHlsVirtualConn::~SrsHlsVirtualConn()
 {
     srs_freep(req);
+}
+
+void SrsHlsVirtualConn::expire()
+{
+    interrupt = true;
+
+    // remove statistic quickly
+    SrsStatistic* stat = SrsStatistic::instance();
+    stat->on_disconnect(ctx, srs_success);
 }
 
 SrsHlsStream::SrsHlsStream()
 {
     _srs_hybrid->timer5s()->subscribe(this);
+    security_ = new SrsSecurity();
 }
 
 SrsHlsStream::~SrsHlsStream()
 {
     _srs_hybrid->timer5s()->unsubscribe(this);
 
-    std::map<std::string, SrsM3u8CtxInfo*>::iterator it;
+    std::map<std::string, SrsHlsVirtualConn*>::iterator it;
     for (it = map_ctx_info_.begin(); it != map_ctx_info_.end(); ++it) {
-        SrsM3u8CtxInfo* info = it->second;
+        SrsHlsVirtualConn* info = it->second;
         srs_freep(info);
     }
     map_ctx_info_.clear();
+    srs_freep(security_);
 }
 
 srs_error_t SrsHlsStream::serve_m3u8_ctx(ISrsHttpResponseWriter* w, ISrsHttpMessage* r, ISrsFileReaderFactory* factory, string fullpath, SrsRequest* req, bool* served)
 {
+    srs_error_t err = srs_success;
+
     string ctx = r->query_get(SRS_CONTEXT_IN_HLS);
 
     // If HLS stream is disabled, use SrsHttpFileServer to serve HLS, which is normal file server.
@@ -82,9 +96,6 @@ srs_error_t SrsHlsStream::serve_m3u8_ctx(ISrsHttpResponseWriter* w, ISrsHttpMess
     // @remark Be careful that the stream has extension now, might cause identify fail.
     req->stream = srs_path_basename(r->path());
 
-    // Always make the ctx alive now.
-    alive(ctx, req);
-
     // Served by us.
     *served = true;
 
@@ -95,11 +106,22 @@ srs_error_t SrsHlsStream::serve_m3u8_ctx(ISrsHttpResponseWriter* w, ISrsHttpMess
             *served = false;
             return srs_success;
         }
-        return serve_exists_session(w, r, factory, fullpath);
+
+        if (is_interrupt(ctx)) {
+            srs_warn("Reject: HLS stream is EOF, ctx=%s", ctx.c_str());
+            return srs_go_http_error(w, SRS_CONSTS_HTTP_NotFound, srs_fmt("HLS stream %s is EOF", ctx.c_str()));
+        }
+
+        err = serve_exists_session(w, r, factory, fullpath);
+    } else {
+        // Create a m3u8 in memory, contains the session id(ctx).
+        err = serve_new_session(w, r, req, ctx);
     }
 
-    // Create a m3u8 in memory, contains the session id(ctx).
-    return serve_new_session(w, r, req);
+    // Always make the ctx alive now.
+    alive(ctx, req);
+
+    return err;
 }
 
 void SrsHlsStream::on_serve_ts_ctx(ISrsHttpResponseWriter* w, ISrsHttpMessage* r)
@@ -124,14 +146,13 @@ void SrsHlsStream::on_serve_ts_ctx(ISrsHttpResponseWriter* w, ISrsHttpMessage* r
     SrsStatistic::instance()->kbps_add_delta(ctx, delta);
 }
 
-srs_error_t SrsHlsStream::serve_new_session(ISrsHttpResponseWriter* w, ISrsHttpMessage* r, SrsRequest* req)
+srs_error_t SrsHlsStream::serve_new_session(ISrsHttpResponseWriter* w, ISrsHttpMessage* r, SrsRequest* req, std::string& ctx)
 {
     srs_error_t err = srs_success;
 
     SrsHttpMessage* hr = dynamic_cast<SrsHttpMessage*>(r);
     srs_assert(hr);
 
-    string ctx;
     if (ctx.empty()) {
         // make sure unique
         do {
@@ -148,6 +169,10 @@ srs_error_t SrsHlsStream::serve_new_session(ISrsHttpResponseWriter* w, ISrsHttpM
         return srs_error_wrap(err, "stat on client");
     }
 
+    if ((err = security_->check(SrsHlsPlay, req->ip, req)) != srs_success) {
+        return srs_error_wrap(err, "HLS: security check");
+    }
+
     // We must do hook after stat, because depends on it.
     if ((err = http_hooks_on_play(req)) != srs_success) {
         return srs_error_wrap(err, "HLS: http_hooks_on_play");
@@ -160,6 +185,7 @@ srs_error_t SrsHlsStream::serve_new_session(ISrsHttpResponseWriter* w, ISrsHttpM
     if (!hr->query().empty() && hr->query_get(SRS_CONTEXT_IN_HLS).empty()) {
         ss << "&" << hr->query();
     }
+    ss << SRS_CONSTS_LF;
 
     std::string res = ss.str();
     int length = res.length();
@@ -184,15 +210,14 @@ srs_error_t SrsHlsStream::serve_exists_session(ISrsHttpResponseWriter* w, ISrsHt
     srs_error_t err = srs_success;
 
     // Read m3u8 content.
-    SrsFileReader* fs = factory->create_file_reader();
-    SrsAutoFree(SrsFileReader, fs);
+    SrsUniquePtr<SrsFileReader> fs(factory->create_file_reader());
 
     if ((err = fs->open(fullpath)) != srs_success) {
         return srs_error_wrap(err, "open %s", fullpath.c_str());
     }
 
     string content;
-    if ((err = srs_ioutil_read_all(fs, content)) != srs_success) {
+    if ((err = srs_ioutil_read_all(fs.get(), content)) != srs_success) {
         return srs_error_wrap(err, "read %s", fullpath.c_str());
     }
 
@@ -235,20 +260,31 @@ bool SrsHlsStream::ctx_is_exist(std::string ctx)
 
 void SrsHlsStream::alive(std::string ctx, SrsRequest* req)
 {
-    std::map<std::string, SrsM3u8CtxInfo*>::iterator it = map_ctx_info_.find(ctx);
+    std::map<std::string, SrsHlsVirtualConn*>::iterator it = map_ctx_info_.find(ctx);
 
     // Create new context.
     if (it == map_ctx_info_.end()) {
-        SrsM3u8CtxInfo *info = new SrsM3u8CtxInfo();
-        info->req = req->copy();
-        info->request_time = srs_get_system_time();
-        map_ctx_info_.insert(make_pair(ctx, info));
+        SrsHlsVirtualConn* conn = new SrsHlsVirtualConn();
+        conn->req = req->copy();
+        conn->ctx = ctx;
+        conn->request_time = srs_get_system_time();
+        map_ctx_info_.insert(make_pair(ctx, conn));
+
+        // Update the conn of stat client, which is used for receiving the event of kickoff.
+        SrsStatistic* stat = SrsStatistic::instance();
+        SrsStatisticClient* client = stat->find_client(ctx);
+        if (client) {
+            client->conn = conn;
+        }
+
         return;
     }
 
-    // Update alive time of context.
-    SrsM3u8CtxInfo* info = it->second;
-    info->request_time = srs_get_system_time();
+    // Update alive time of context for virtual connection.
+    SrsHlsVirtualConn* conn = it->second;
+    if (!conn->interrupt) {
+        conn->request_time = srs_get_system_time();
+    }
 }
 
 srs_error_t SrsHlsStream::http_hooks_on_play(SrsRequest* req)
@@ -318,10 +354,10 @@ srs_error_t SrsHlsStream::on_timer(srs_utime_t interval)
 {
     srs_error_t err = srs_success;
 
-    std::map<std::string, SrsM3u8CtxInfo*>::iterator it;
+    std::map<std::string, SrsHlsVirtualConn*>::iterator it;
     for (it = map_ctx_info_.begin(); it != map_ctx_info_.end(); ++it) {
         string ctx = it->first;
-        SrsM3u8CtxInfo* info = it->second;
+        SrsHlsVirtualConn* info = it->second;
 
         srs_utime_t hls_window = _srs_config->get_hls_window(info->req->vhost);
         if (info->request_time + (2 * hls_window) < srs_get_system_time()) {
@@ -344,6 +380,14 @@ srs_error_t SrsHlsStream::on_timer(srs_utime_t interval)
     return err;
 }
 
+bool SrsHlsStream::is_interrupt(std::string id) {
+    std::map<std::string, SrsHlsVirtualConn*>::iterator it = map_ctx_info_.find(id);
+    if (it != map_ctx_info_.end()) {
+        return it->second->interrupt;
+    }
+    return false;
+}
+
 SrsVodStream::SrsVodStream(string root_dir) : SrsHttpFileServer(root_dir)
 {
 }
@@ -355,10 +399,9 @@ SrsVodStream::~SrsVodStream()
 srs_error_t SrsVodStream::serve_flv_stream(ISrsHttpResponseWriter* w, ISrsHttpMessage* r, string fullpath, int64_t offset)
 {
     srs_error_t err = srs_success;
-    
-    SrsFileReader* fs = fs_factory->create_file_reader();
-    SrsAutoFree(SrsFileReader, fs);
-    
+
+    SrsUniquePtr<SrsFileReader> fs(fs_factory->create_file_reader());
+
     // open flv file
     if ((err = fs->open(fullpath)) != srs_success) {
         return srs_error_wrap(err, "open file");
@@ -372,7 +415,7 @@ srs_error_t SrsVodStream::serve_flv_stream(ISrsHttpResponseWriter* w, ISrsHttpMe
     SrsFlvVodStreamDecoder ffd;
     
     // open fast decoder
-    if ((err = ffd.initialize(fs)) != srs_success) {
+    if ((err = ffd.initialize(fs.get())) != srs_success) {
         return srs_error_wrap(err, "init ffd");
     }
     
@@ -385,9 +428,7 @@ srs_error_t SrsVodStream::serve_flv_stream(ISrsHttpResponseWriter* w, ISrsHttpMe
     }
     
     // save sequence header, send later
-    char* sh_data = NULL;
     int sh_size = 0;
-    
     if (true) {
         // send sequence header
         int64_t start = 0;
@@ -398,9 +439,9 @@ srs_error_t SrsVodStream::serve_flv_stream(ISrsHttpResponseWriter* w, ISrsHttpMe
             return srs_error_new(ERROR_HTTP_REMUX_SEQUENCE_HEADER, "no sequence, size=%d", sh_size);
         }
     }
-    sh_data = new char[sh_size];
-    SrsAutoFreeA(char, sh_data);
-    if ((err = fs->read(sh_data, sh_size, NULL)) != srs_success) {
+
+    SrsUniquePtr<char[]> sh_data(new char[sh_size]);
+    if ((err = fs->read(sh_data.get(), sh_size, NULL)) != srs_success) {
         return srs_error_wrap(err, "fs read");
     }
     
@@ -416,7 +457,7 @@ srs_error_t SrsVodStream::serve_flv_stream(ISrsHttpResponseWriter* w, ISrsHttpMe
     if ((err = w->write(flv_header, sizeof(flv_header))) != srs_success) {
         return srs_error_wrap(err, "write flv header");
     }
-    if (sh_size > 0 && (err = w->write(sh_data, sh_size)) != srs_success) {
+    if (sh_size > 0 && (err = w->write(sh_data.get(), sh_size)) != srs_success) {
         return srs_error_wrap(err, "write sequence");
     }
     
@@ -426,7 +467,7 @@ srs_error_t SrsVodStream::serve_flv_stream(ISrsHttpResponseWriter* w, ISrsHttpMe
     }
     
     // send data
-    if ((err = copy(w, fs, r, left)) != srs_success) {
+    if ((err = copy(w, fs.get(), r, left)) != srs_success) {
         return srs_error_wrap(err, "read flv=%s size=%" PRId64, fullpath.c_str(), left);
     }
     
@@ -439,10 +480,9 @@ srs_error_t SrsVodStream::serve_mp4_stream(ISrsHttpResponseWriter* w, ISrsHttpMe
     
     srs_assert(start >= 0);
     srs_assert(end == -1 || end >= 0);
-    
-    SrsFileReader* fs = fs_factory->create_file_reader();
-    SrsAutoFree(SrsFileReader, fs);
-    
+
+    SrsUniquePtr<SrsFileReader> fs(fs_factory->create_file_reader());
+
     // open flv file
     if ((err = fs->open(fullpath)) != srs_success) {
         return srs_error_wrap(err, "fs open");
@@ -476,7 +516,7 @@ srs_error_t SrsVodStream::serve_mp4_stream(ISrsHttpResponseWriter* w, ISrsHttpMe
     fs->seek2(start);
     
     // send data
-    if ((err = copy(w, fs, r, left)) != srs_success) {
+    if ((err = copy(w, fs.get(), r, left)) != srs_success) {
         return srs_error_wrap(err, "read mp4=%s size=%" PRId64, fullpath.c_str(), left);
     }
     
@@ -490,8 +530,7 @@ srs_error_t SrsVodStream::serve_m3u8_ctx(ISrsHttpResponseWriter * w, ISrsHttpMes
     SrsHttpMessage* hr = dynamic_cast<SrsHttpMessage*>(r);
     srs_assert(hr);
 
-    SrsRequest* req = hr->to_request(hr->host())->as_http();
-    SrsAutoFree(SrsRequest, req);
+    SrsUniquePtr<SrsRequest> req(hr->to_request(hr->host())->as_http());
 
     // discovery vhost, resolve the vhost from config
     SrsConfDirective* parsed_vhost = _srs_config->get_vhost(req->vhost);
@@ -501,7 +540,7 @@ srs_error_t SrsVodStream::serve_m3u8_ctx(ISrsHttpResponseWriter * w, ISrsHttpMes
 
     // Try to serve by HLS streaming.
     bool served = false;
-    if ((err = hls_.serve_m3u8_ctx(w, r, fs_factory, fullpath, req, &served)) != srs_success) {
+    if ((err = hls_.serve_m3u8_ctx(w, r, fs_factory, fullpath, req.get(), &served)) != srs_success) {
         return srs_error_wrap(err, "hls ctx");
     }
 

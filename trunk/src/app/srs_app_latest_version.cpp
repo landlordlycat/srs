@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #include <srs_app_latest_version.hpp>
@@ -70,6 +70,8 @@ void srs_build_features(stringstream& ss)
     SRS_CHECK_FEATURE2(_srs_config->get_raw_api(), "raw", ss);
     SRS_CHECK_FEATURE2(_srs_config->get_exporter_enabled(), "prom", ss);
 
+    string platform = srs_getenv("SRS_PLATFORM");
+    SRS_CHECK_FEATURE3(!string(platform).empty(), "plat", platform, ss);
     string region = srs_getenv("SRS_REGION");
     SRS_CHECK_FEATURE3(!string(region).empty(), "region", region, ss);
     string source = srs_getenv("SRS_SOURCE");
@@ -166,11 +168,13 @@ void srs_build_features(stringstream& ss)
     SRS_CHECK_FEATURE(security, ss);
     SRS_CHECK_FEATURE2(_srs_config_by_env, "env", ss);
 
+#ifdef SRS_APM
     SRS_CHECK_FEATURE2(_srs_cls->enabled(), "cls", ss);
     SRS_CHECK_FEATURE3(_srs_cls->nn_logs(), "logs", _srs_cls->nn_logs(), ss);
 
     SRS_CHECK_FEATURE2(_srs_apm->enabled(), "apm", ss);
     SRS_CHECK_FEATURE3(_srs_apm->nn_spans(), "spans", _srs_apm->nn_spans(), ss);
+#endif
 }
 
 SrsLatestVersion::SrsLatestVersion()
@@ -262,11 +266,12 @@ srs_error_t SrsLatestVersion::query_latest_version(string& url)
     path += "?";
     path += uri.get_query();
 
-    ISrsHttpMessage* msg = NULL;
-    if ((err = http.get(path, "", &msg)) != srs_success) {
+    ISrsHttpMessage* msg_raw = NULL;
+    if ((err = http.get(path, "", &msg_raw)) != srs_success) {
         return err;
     }
-    SrsAutoFree(ISrsHttpMessage, msg);
+
+    SrsUniquePtr<ISrsHttpMessage> msg(msg_raw);
 
     string res;
     int code = msg->status_code();
@@ -284,11 +289,10 @@ srs_error_t SrsLatestVersion::query_latest_version(string& url)
     }
 
     // Response in json object.
-    SrsJsonAny* jres = SrsJsonAny::loads((char*)res.c_str());
-    if (!jres || !jres->is_object()) {
+    SrsUniquePtr<SrsJsonAny> jres(SrsJsonAny::loads((char*)res.c_str()));
+    if (!jres.get() || !jres->is_object()) {
         return srs_error_new(ERROR_HTTP_DATA_INVALID, "invalid response %s", res.c_str());
     }
-    SrsAutoFree(SrsJsonAny, jres);
 
     SrsJsonObject* obj = jres->to_object();
     SrsJsonAny* prop = NULL;

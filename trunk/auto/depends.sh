@@ -12,290 +12,16 @@
 #####################################################################################
 
 #####################################################################################
-# utilities
-#####################################################################################
-function require_sudoer() {
-    sudo echo "" >/dev/null 2>&1
-    
-    ret=$?; if [[ 0 -ne $ret ]]; then 
-        echo "\"$1\" require sudoer failed. ret=$ret";
-        exit $ret; 
-    fi
-}
-
-#####################################################################################
-# for Ubuntu, auto install tools by apt-get
-#####################################################################################
-function Ubuntu_prepare() {
-    if [[ $OS_IS_UBUNTU != YES ]]; then return 0; fi
-    echo "Installing tools for Ubuntu."
-    
-    gcc --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "Installing gcc."
-        require_sudoer "sudo apt-get install -y --force-yes gcc"
-        sudo apt-get install -y --force-yes gcc; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "The gcc is installed."
-    fi
-    
-    g++ --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "Installing g++."
-        require_sudoer "sudo apt-get install -y --force-yes g++"
-        sudo apt-get install -y --force-yes g++; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "The g++ is installed."
-    fi
-    
-    make --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "Installing make."
-        require_sudoer "sudo apt-get install -y --force-yes make"
-        sudo apt-get install -y --force-yes make; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "The make is installed."
-    fi
-    
-    patch --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "Installing patch."
-        require_sudoer "sudo apt-get install -y --force-yes patch"
-        sudo apt-get install -y --force-yes patch; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "The patch is installed."
-    fi
-    
-    unzip --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "Installing unzip."
-        require_sudoer "sudo apt-get install -y --force-yes unzip"
-        sudo apt-get install -y --force-yes unzip; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "The unzip is installed."
-    fi
-
-    if [[ $SRS_VALGRIND == YES ]]; then
-        valgrind --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-            echo "Installing valgrind."
-            require_sudoer "sudo apt-get install -y --force-yes valgrind"
-            sudo apt-get install -y --force-yes valgrind; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-            echo "The valgrind is installed."
-        fi
-    fi
-
-    if [[ $SRS_VALGRIND == YES ]]; then
-        if [[ ! -f /usr/include/valgrind/valgrind.h ]]; then
-            echo "Installing valgrind-dev."
-            require_sudoer "sudo apt-get install -y --force-yes valgrind-dbg"
-            sudo apt-get install -y --force-yes valgrind-dev; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-            echo "The valgrind-dev is installed."
-        fi
-    fi
-
-    if [[ $SRS_SRT == YES ]]; then
-        echo "SRT enable, install depend tools"
-        tclsh <<< "exit" >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-            echo "Installing tcl."
-            require_sudoer "sudo apt-get install -y --force-yes tcl"
-            sudo apt-get install -y --force-yes tcl; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-            echo "The tcl is installed."
-        fi
-
-        cmake --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-            echo "Installing cmake."
-            require_sudoer "sudo apt-get install -y --force-yes cmake"
-            sudo apt-get install -y --force-yes cmake; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-            echo "The cmake is installed."
-        fi
-    fi
-
-    pkg-config --version >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "Installing pkg-config."
-        require_sudoer "sudo apt-get install -y --force-yes pkg-config"
-        sudo apt-get install -y --force-yes pkg-config; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "The pkg-config is installed."
-    fi
-
-    echo "Tools for Ubuntu are installed."
-    return 0
-}
-# donot prepare tools, for srs-librtmp depends only gcc and g++.
-Ubuntu_prepare; ret=$?; if [[ 0 -ne $ret ]]; then echo "Install tools for ubuntu failed, ret=$ret"; exit $ret; fi
-
-#####################################################################################
-# for Centos, auto install tools by yum
-#####################################################################################
-function Centos_prepare() {
-    if [[ $OS_IS_CENTOS != YES ]]; then return 0; fi
-    echo "Installing tools for Centos."
-    
-    gcc --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "Installing gcc."
-        require_sudoer "sudo yum install -y gcc"
-        sudo yum install -y gcc; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "The gcc is installed."
-    fi
-    
-    g++ --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "Installing gcc-c++."
-        require_sudoer "sudo yum install -y gcc-c++"
-        sudo yum install -y gcc-c++; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "The gcc-c++ is installed."
-    fi
-    
-    make --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "Installing make."
-        require_sudoer "sudo yum install -y make"
-        sudo yum install -y make; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "The make is installed."
-    fi
-    
-    patch --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "Installing patch."
-        require_sudoer "sudo yum install -y patch"
-        sudo yum install -y patch; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "The patch is installed."
-    fi
-    
-    unzip --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "Installing unzip."
-        require_sudoer "sudo yum install -y unzip"
-        sudo yum install -y unzip; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "The unzip is installed."
-    fi
-
-    if [[ $SRS_VALGRIND == YES ]]; then
-        valgrind --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-            echo "Installing valgrind."
-            require_sudoer "sudo yum install -y valgrind"
-            sudo yum install -y valgrind; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-            echo "The valgrind is installed."
-        fi
-    fi
-
-    if [[ $SRS_VALGRIND == YES ]]; then
-        if [[ ! -f /usr/include/valgrind/valgrind.h ]]; then
-            echo "Installing valgrind-devel."
-            require_sudoer "sudo yum install -y valgrind-devel"
-            sudo yum install -y valgrind-devel; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-            echo "The valgrind-devel is installed."
-        fi
-    fi
-
-    if [[ $SRS_SRT == YES ]]; then
-        echo "SRT enable, install depend tools"
-        tclsh <<< "exit" >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-            echo "Installing tcl."
-            require_sudoer "sudo yum install -y tcl"
-            sudo yum install -y tcl; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-            echo "The tcl is installed."
-        fi
-
-        cmake --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-            echo "Installing cmake."
-            require_sudoer "sudo  yum install -y cmake"
-            sudo yum install -y cmake; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-            echo "The cmake is installed."
-        fi
-    fi
-
-    pkg-config --version --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "Please install pkg-config"; exit -1;
-    fi
-    
-    echo "Tools for Centos are installed."
-    return 0
-}
-# donot prepare tools, for srs-librtmp depends only gcc and g++.
-Centos_prepare; ret=$?; if [[ 0 -ne $ret ]]; then echo "Install tools for CentOS failed, ret=$ret"; exit $ret; fi
-
-#####################################################################################
-# For OSX, auto install tools by brew
-#####################################################################################
-function OSX_prepare() {
-    if [[ $OS_IS_OSX != YES ]]; then
-        if [[ $SRS_OSX == YES ]]; then echo "OSX check failed, actual is `uname -s`"; exit 1; fi
-        return 0
-    fi
-
-    # cross build for arm, install the cross build tool chain.
-    if [[ $SRS_CROSS_BUILD == YES ]]; then
-        echo "The embeded(arm/mips) is invalid for OSX"
-        return 1
-    fi
-
-    # Requires the osx when darwin detected
-    if [[ $OS_IS_OSX == YES && $SRS_OSX != YES ]]; then
-        echo "OSX detected, please use: ./configure --osx"
-        exit 1
-    fi
-
-    echo "OSX detected, install tools if needed"
-
-    brew --version >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "Please install brew at https://brew.sh/"
-        exit $ret
-    fi
-
-    gcc --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "install gcc"
-        echo "brew install gcc"
-        brew install gcc; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "install gcc success"
-    fi
-
-    g++ --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "install gcc-c++"
-        echo "brew install gcc-c++"
-        brew install gcc-c++; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "install gcc-c++ success"
-    fi
-
-    make --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "install make"
-        echo "brew install make"
-        brew install make; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "install make success"
-    fi
-
-    patch --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "install patch"
-        echo "brew install patch"
-        brew install patch; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "install patch success"
-    fi
-
-    unzip --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "install unzip"
-        echo "brew install unzip"
-        brew install unzip; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "install unzip success"
-    fi
-
-    pkg-config --version >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "Please install pkg-config"; exit -1;
-    fi
-
-    if [[ $SRS_SRT == YES ]]; then
-        echo "SRT enable, install depend tools"
-        tclsh <<< "exit" >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-            echo "Installing tcl."
-            echo "brew install tcl."
-            brew install tcl; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-            echo "install tcl success"
-        fi
-
-        cmake --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-            echo "Installing cmake."
-            echo "brew install cmake."
-            brew install cmake; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-            echo "install cmake success"
-        fi
-    fi
-
-    echo "OSX install tools success"
-    return 0
-}
-# donot prepare tools, for srs-librtmp depends only gcc and g++.
-OSX_prepare; ret=$?; if [[ 0 -ne $ret ]]; then echo "OSX prepare failed, ret=$ret"; exit $ret; fi
-
-#####################################################################################
 # Check OS and CPU architectures.
 #####################################################################################
-if [[ $OS_IS_UBUNTU != YES && $OS_IS_CENTOS != YES && $OS_IS_OSX != YES && $SRS_CROSS_BUILD != YES && $SRS_CYGWIN64 != YES ]]; then
-    echo "Your OS `uname -s` is not supported."
-    exit 1
+if [[ $OS_IS_UBUNTU != YES && $OS_IS_CENTOS != YES && $OS_IS_OSX != YES && $SRS_CYGWIN64 != YES ]]; then
+    if [[ $SRS_CROSS_BUILD != YES && $SRS_GENERIC_LINUX != YES ]]; then
+        echo "Your OS `uname -s` is not supported."
+        if [[ $(uname -s) == "Linux" ]]; then
+            echo "Please try --generic-linux=on for other Linux systems."
+        fi
+        exit 1
+    fi
 fi
 
 # The absolute path of SRS_OBJS, for prefix and PKG_CONFIG_PATH
@@ -315,12 +41,156 @@ if [[ ! -z $OS_IS_RISCV ]]; then echo -n ", OS_IS_RISCV: $OS_IS_RISCV"; fi
 echo ""
 
 #####################################################################################
+# Check dependency tools.
+#####################################################################################
+if [[ $SRS_OSX == YES ]]; then
+    brew --version >/dev/null 2>/dev/null; ret=$?; if [[ 0 -ne $ret ]]; then
+        echo "Please install brew at https://brew.sh/"; exit $ret;
+    fi
+fi
+# Check perl, which is depended by automake for building libopus etc.
+perl --version >/dev/null 2>/dev/null; ret=$?; if [[ 0 -ne $ret ]]; then
+    if [[ $OS_IS_CENTOS == YES ]]; then
+        echo "Please install perl by:"
+        echo "  yum install -y perl"
+    elif [[ $OS_IS_UBUNTU == YES ]]; then
+        echo "Please install perl by:"
+        echo "  apt install -y perl"
+    else
+        echo "Please install perl"
+    fi
+    exit $ret;
+fi
+gcc --version >/dev/null 2>/dev/null; ret=$?; if [[ 0 -ne $ret ]]; then
+    if [[ $OS_IS_CENTOS == YES ]]; then
+        echo "Please install gcc by:"
+        echo "  yum install -y gcc"
+    elif [[ $OS_IS_UBUNTU == YES ]]; then
+        echo "Please install gcc by:"
+        echo "  apt install -y gcc"
+    else
+        echo "Please install gcc"
+    fi
+    exit $ret;
+fi
+g++ --version >/dev/null 2>/dev/null; ret=$?; if [[ 0 -ne $ret ]]; then
+    if [[ $OS_IS_CENTOS == YES ]]; then
+        echo "Please install g++ by:"
+        echo "  yum install -y gcc-c++"
+    elif [[ $OS_IS_UBUNTU == YES ]]; then
+        echo "Please install g++ by:"
+        echo "  apt install -y g++"
+    else
+        echo "Please install gcc-c++"
+    fi
+    exit $ret;
+fi
+make --version >/dev/null 2>/dev/null; ret=$?; if [[ 0 -ne $ret ]]; then
+    if [[ $OS_IS_CENTOS == YES ]]; then
+        echo "Please install make by:"
+        echo "  yum install -y make"
+    elif [[ $OS_IS_UBUNTU == YES ]]; then
+        echo "Please install make by:"
+        echo "  apt install -y make"
+    else
+        echo "Please install make"
+    fi
+    exit $ret;
+fi
+patch --version >/dev/null 2>/dev/null; ret=$?; if [[ 0 -ne $ret ]]; then
+    if [[ $OS_IS_CENTOS == YES ]]; then
+        echo "Please install patch by:"
+        echo "  yum install -y patch"
+    elif [[ $OS_IS_UBUNTU == YES ]]; then
+        echo "Please install patch by:"
+        echo "  apt install -y patch"
+    else
+        echo "Please install patch"
+    fi
+    exit $ret;
+fi
+unzip -v >/dev/null 2>/dev/null; ret=$?; if [[ 0 -ne $ret ]]; then
+    if [[ $OS_IS_CENTOS == YES ]]; then
+        echo "Please install unzip by:"
+        echo "  yum install -y unzip"
+    elif [[ $OS_IS_UBUNTU == YES ]]; then
+        echo "Please install unzip by:"
+        echo "  apt install -y unzip"
+    else
+        echo "Please install unzip"
+    fi
+    exit $ret;
+fi
+automake --version >/dev/null 2>/dev/null; ret=$?; if [[ 0 -ne $ret ]]; then
+    if [[ $OS_IS_CENTOS == YES ]]; then
+        echo "Please install automake by:"
+        echo "  yum install -y automake"
+    elif [[ $OS_IS_UBUNTU == YES ]]; then
+        echo "Please install automake by:"
+        echo "  apt install -y automake"
+    else
+        echo "Please install automake"
+    fi
+    exit $ret;
+fi
+if [[ $SRS_VALGRIND == YES ]]; then
+    valgrind --version >/dev/null 2>/dev/null; ret=$?; if [[ 0 -ne $ret ]]; then
+        echo "Please install valgrind"; exit $ret;
+    fi
+    if [[ ! -f /usr/include/valgrind/valgrind.h ]]; then
+        echo "Please install valgrind-dev"; exit $ret;
+    fi
+fi
+# Check tclsh, which is depended by SRT.
+if [[ $SRS_SRT == YES ]]; then
+    tclsh <<< "exit" >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
+        if [[ $OS_IS_CENTOS == YES ]]; then
+            echo "Please install tclsh by:"
+            echo "  yum install -y tcl"
+        elif [[ $OS_IS_UBUNTU == YES ]]; then
+            echo "Please install tclsh by:"
+            echo "  apt install -y tclsh"
+        else
+            echo "Please install tclsh"
+        fi
+        exit $ret;
+    fi
+    cmake --version >/dev/null 2>/dev/null; ret=$?; if [[ 0 -ne $ret ]]; then
+        if [[ $OS_IS_CENTOS == YES ]]; then
+            echo "Please install cmake by:"
+            echo "  yum install -y cmake"
+        elif [[ $OS_IS_UBUNTU == YES ]]; then
+            echo "Please install cmake by:"
+            echo "  apt install -y cmake"
+        else
+            echo "Please install cmake"
+        fi
+        exit $ret;
+    fi
+fi
+pkg-config --version >/dev/null 2>/dev/null; ret=$?; if [[ 0 -ne $ret ]]; then
+    echo "Please install pkg-config"; exit $ret;
+fi
+which ls >/dev/null 2>/dev/null; ret=$?; if [[ 0 -ne $ret ]]; then
+    if [[ $OS_IS_CENTOS == YES ]]; then
+        echo "Please install which by:"
+        echo "  yum install -y which"
+    elif [[ $OS_IS_UBUNTU == YES ]]; then
+        echo "Please install which by:"
+        echo "  apt install -y which"
+    else
+        echo "Please install which"
+    fi
+    exit $ret;
+fi
+
+#####################################################################################
 # Try to load cache if exists /usr/local/srs-cache
 #####################################################################################
 # Use srs-cache from base image. See https://github.com/ossrs/dev-docker/blob/ubuntu20-cache/Dockerfile
 # Note that the cache for cygwin is not under /usr/local, but copy to objs instead.
-if [[ -d /usr/local/srs-cache/srs/trunk/objs && $(pwd) != "/usr/local/srs-cache/srs/trunk" ]]; then
-    SOURCE_DIR=$(ls -d /usr/local/srs-cache/srs/trunk/objs/Platform-* 2>/dev/null|head -n 1)
+if [[ -d /usr/local/srs-cache/srs/trunk/objs && $(pwd) != "/usr/local/srs-cache/srs/trunk" && $SRS_BUILD_CACHE == YES ]]; then
+    SOURCE_DIR=$(ls -d /usr/local/srs-cache/srs/trunk/objs/Platform-SRS${SRS_MAJOR}-* 2>/dev/null|head -n 1)
     if [[ -d $SOURCE_DIR ]]; then
         TARGET_DIR=${SRS_OBJS}/${SRS_PLATFORM} &&
         echo "Build from cache, source=$SOURCE_DIR, target=$TARGET_DIR" &&
@@ -335,7 +205,7 @@ fi
 #####################################################################################
 # Check for address sanitizer, see https://github.com/google/sanitizers
 #####################################################################################
-if [[ $SRS_SANITIZER == YES && $OS_IS_X86_64 == YES ]]; then
+if [[ $SRS_SANITIZER == YES ]]; then
     echo 'int main() { return 0; }' > ${SRS_OBJS}/test_sanitizer.c &&
     gcc -fsanitize=address -fno-omit-frame-pointer -g -O0 ${SRS_OBJS}/test_sanitizer.c \
         -o ${SRS_OBJS}/test_sanitizer 1>/dev/null 2>&1;
@@ -344,6 +214,41 @@ if [[ $SRS_SANITIZER == YES && $OS_IS_X86_64 == YES ]]; then
         echo "Please install libasan, see https://github.com/google/sanitizers";
         if [[ $OS_IS_CENTOS == YES ]]; then echo "    sudo yum install -y libasan"; fi
         exit $ret;
+    fi
+fi
+
+if [[ $SRS_SANITIZER == YES && $SRS_SANITIZER_STATIC == NO ]]; then
+    echo 'int main() { return 0; }' > ${SRS_OBJS}/test_sanitizer.c &&
+    gcc -fsanitize=address -fno-omit-frame-pointer -static-libasan -g -O0 ${SRS_OBJS}/test_sanitizer.c \
+        -o ${SRS_OBJS}/test_sanitizer 1>/dev/null 2>&1;
+    ret=$?; rm -rf ${SRS_OBJS}/test_sanitizer*
+    if [[ $ret -eq 0 ]]; then
+        echo "link static-libasan"
+        SRS_SANITIZER_STATIC=YES
+    fi
+fi
+
+if [[ $SRS_SANITIZER == YES && $SRS_SANITIZER_LOG == NO ]]; then
+    echo "#include <sanitizer/asan_interface.h>" > ${SRS_OBJS}/test_sanitizer.c &&
+    echo "int main() { return 0; }" >> ${SRS_OBJS}/test_sanitizer.c &&
+    gcc -fsanitize=address -fno-omit-frame-pointer -g -O0 ${SRS_OBJS}/test_sanitizer.c \
+        -o ${SRS_OBJS}/test_sanitizer 1>/dev/null 2>&1;
+    ret=$?; rm -rf ${SRS_OBJS}/test_sanitizer*
+    if [[ $ret -eq 0 ]]; then
+        echo "libasan api found ok!";
+        SRS_SANITIZER_LOG=YES
+    fi
+fi
+
+if [[ $SRS_SANITIZER == YES ]]; then
+    echo "#include <sanitizer/asan_interface.h>" > ${SRS_OBJS}/test_sanitizer.c &&
+    echo "int main() { __sanitizer_start_switch_fiber(NULL, NULL, 0); }" >> ${SRS_OBJS}/test_sanitizer.c &&
+    gcc -fsanitize=address -fno-omit-frame-pointer -g -O0 ${SRS_OBJS}/test_sanitizer.c \
+        -o ${SRS_OBJS}/test_sanitizer 1>/dev/null 2>&1;
+    ret=$?; rm -rf ${SRS_OBJS}/test_sanitizer*
+    if [[ $ret -eq 0 ]]; then
+        echo "libasan fiber switch api found ok!";
+        SRS_SANITIZER_FIBER_SWITCH=YES
     fi
 fi
 
@@ -361,6 +266,9 @@ fi
 # for osx, use darwin for st, donot use epoll.
 if [[ $SRS_OSX == YES ]]; then
     _ST_MAKE=darwin-debug && _ST_OBJ="DARWIN_`uname -r`_DBG"
+    if [[ $SRS_OSX_HAS_CLOCK_GETTIME != YES ]]; then
+        _ST_EXTRA_CFLAGS="$_ST_EXTRA_CFLAGS -DMD_OSX_NO_CLOCK_GETTIME"
+    fi
 fi
 # for windows/cygwin
 if [[ $SRS_CYGWIN64 = YES ]]; then
@@ -373,6 +281,13 @@ fi
 # Whether enable debug stats.
 if [[ $SRS_DEBUG_STATS == YES ]]; then
     _ST_EXTRA_CFLAGS="$_ST_EXTRA_CFLAGS -DDEBUG_STATS"
+fi
+# Whether to enable asan.
+if [[ $SRS_SANITIZER_FIBER_SWITCH == YES ]]; then
+    _ST_EXTRA_CFLAGS="$_ST_EXTRA_CFLAGS -DMD_ASAN"
+fi
+if [[ $SRS_SANITIZER == YES ]]; then
+    _ST_EXTRA_CFLAGS="$_ST_EXTRA_CFLAGS -fsanitize=address -fno-omit-frame-pointer"
 fi
 # Pass the global extra flags.
 if [[ $SRS_EXTRA_FLAGS != '' ]]; then
@@ -388,18 +303,18 @@ fi
 _ST_MAKE_ARGS="${_ST_MAKE} STATIC_ONLY=${_ST_STATIC_ONLY}"
 _ST_MAKE_ARGS="${_ST_MAKE_ARGS} CC=${SRS_TOOL_CC} AR=${SRS_TOOL_AR} LD=${SRS_TOOL_LD} RANDLIB=${SRS_TOOL_RANDLIB}"
 # Patched ST from https://github.com/ossrs/state-threads/tree/srs
-if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/st/libst.a ]]; then
-    rm -rf ${SRS_OBJS}/st && cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/st ${SRS_OBJS}/ &&
+if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/st/libst.a ]]; then
+    rm -rf ${SRS_OBJS}/st && cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/st ${SRS_OBJS}/ &&
     echo "The state-threads is ok."
 else
     echo "Building state-threads." &&
-    rm -rf ${SRS_OBJS}/${SRS_PLATFORM}/st-srs ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/st ${SRS_OBJS}/st &&
+    rm -rf ${SRS_OBJS}/${SRS_PLATFORM}/st-srs ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/st ${SRS_OBJS}/st &&
     cp -rf ${SRS_WORKDIR}/3rdparty/st-srs ${SRS_OBJS}/${SRS_PLATFORM}/ &&
     env EXTRA_CFLAGS="${_ST_EXTRA_CFLAGS}" make -C ${SRS_OBJS}/${SRS_PLATFORM}/st-srs ${_ST_MAKE_ARGS} &&
-    mkdir -p ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/st &&
-    cp -f ${SRS_OBJS}/${SRS_PLATFORM}/st-srs/${_ST_OBJ}/st.h ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/st/ &&
-    cp -f ${SRS_OBJS}/${SRS_PLATFORM}/st-srs/${_ST_OBJ}/libst.a ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/st/ &&
-    cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/st ${SRS_OBJS}/ &&
+    mkdir -p ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/st &&
+    cp -f ${SRS_OBJS}/${SRS_PLATFORM}/st-srs/${_ST_OBJ}/st.h ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/st/ &&
+    cp -f ${SRS_OBJS}/${SRS_PLATFORM}/st-srs/${_ST_OBJ}/libst.a ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/st/ &&
+    cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/st ${SRS_OBJS}/ &&
     echo "The state-threads is ok."
 fi
 # check status
@@ -461,41 +376,6 @@ if [[ ! -f $SRS_WORKDIR/conf/server.key || ! -f $SRS_WORKDIR/conf/server.crt ]];
 fi
 
 #####################################################################################
-# cherrypy for http hooks callback, CherryPy-3.2.4
-#####################################################################################
-# TODO: FIXME: Replace by Go.
-if [[ $SRS_CHERRYPY == YES ]]; then
-    # Detect python or python2
-    python --version >/dev/null 2>&1 && SYS_PYTHON=python;
-    python2 --version >/dev/null 2>&1 && SYS_PYTHON=python2;
-    # Install cherrypy for api server.
-    if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/CherryPy-3.2.4/setup.py ]]; then
-        echo "CherryPy-3.2.4 is ok.";
-    else
-        echo "Installing CherryPy-3.2.4";
-        (
-            rm -rf ${SRS_OBJS}/CherryPy-3.2.4 && cd ${SRS_OBJS}/${SRS_PLATFORM} &&
-            unzip -q ../../3rdparty/CherryPy-3.2.4.zip && cd CherryPy-3.2.4 &&
-            $SYS_PYTHON setup.py install --user --prefix=''
-        )
-    fi
-    # check status
-    ret=$?; if [[ $ret -ne 0 ]]; then echo "build CherryPy-3.2.4 failed, ret=$ret"; exit $ret; fi
-    if [ ! -f ${SRS_OBJS}/${SRS_PLATFORM}/CherryPy-3.2.4/setup.py ]; then echo "build CherryPy-3.2.4 failed."; exit -1; fi
-
-    echo "Link players to cherrypy static-dir"
-    rm -rf research/api-server/static-dir/players &&
-    ln -sf $SRS_WORKDIR/research/players research/api-server/static-dir/players &&
-    rm -rf research/api-server/static-dir/live &&
-    mkdir -p $SRS_WORKDIR/${SRS_OBJS}/nginx/html/live &&
-    ln -sf $SRS_WORKDIR/${SRS_OBJS}/nginx/html/live research/api-server/static-dir/live &&
-    rm -rf research/api-server/static-dir/forward &&
-    mkdir -p $SRS_WORKDIR/${SRS_OBJS}/nginx/html/forward &&
-    ln -sf $SRS_WORKDIR/${SRS_OBJS}/nginx/html/forward research/api-server/static-dir/forward
-    ret=$?; if [[ $ret -ne 0 ]]; then echo "Warning: Ignore error to link players to cherrypy static-dir."; fi
-fi
-
-#####################################################################################
 # openssl, for rtmp complex handshake and HLS encryption.
 #####################################################################################
 if [[ $SRS_SSL == YES && $SRS_USE_SYS_SSL == YES ]]; then
@@ -513,13 +393,13 @@ if [[ $SRS_SSL == YES && $SRS_USE_SYS_SSL != YES ]]; then
         if [[ $SRS_CROSS_BUILD_ARCH == "arm" ]]; then OPENSSL_CONFIG="./Configure linux-armv4"; fi
         if [[ $SRS_CROSS_BUILD_ARCH == "aarch64" ]]; then OPENSSL_CONFIG="./Configure linux-aarch64"; fi
         if [[ $SRS_CROSS_BUILD_ARCH == "mipsel" ]]; then OPENSSL_CONFIG="./Configure linux-mips32"; fi
-    elif [[ ! -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/openssl/lib/libssl.a ]]; then
+    elif [[ ! -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/openssl/lib/libssl.a ]]; then
         # Try to use exists libraries.
         if [[ -f /usr/local/ssl/lib/libssl.a && $SRS_SSL_LOCAL == NO ]]; then
-            (mkdir -p  ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/openssl/lib && cd ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/openssl/lib &&
+            (mkdir -p  ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/openssl/lib && cd ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/openssl/lib &&
                 cp /usr/local/ssl/lib/libssl.a . && cp /usr/local/ssl/lib/libcrypto.a . &&
                 mkdir -p /usr/local/ssl/lib/pkgconfig && cp -rf /usr/local/ssl/lib/pkgconfig .)
-            (mkdir -p ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/openssl/include && cd ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/openssl/include &&
+            (mkdir -p ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/openssl/include && cd ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/openssl/include &&
                 cp -rf /usr/local/ssl/include/openssl .)
         fi
         # Warning if not use the system ssl.
@@ -560,22 +440,23 @@ if [[ $SRS_SSL == YES && $SRS_USE_SYS_SSL != YES ]]; then
     #OPENSSL_OPTIONS="$OPENSSL_OPTIONS -no-ssl2 -no-comp -no-idea -no-hw -no-engine -no-dso -no-err -no-nextprotoneg -no-psk -no-srp -no-ec2m -no-weak-ssl-ciphers"
     #
     # cross build not specified, if exists flag, need to rebuild for no-arm platform.
-    if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/openssl/lib/libssl.a ]]; then
-        rm -rf ${SRS_OBJS}/openssl && cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/openssl ${SRS_OBJS}/ &&
+    if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/openssl/lib/libssl.a ]]; then
+        rm -rf ${SRS_OBJS}/openssl && cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/openssl ${SRS_OBJS}/ &&
         echo "The $OPENSSL_CANDIDATE is ok."
     else
         echo "Building $OPENSSL_CANDIDATE." &&
-        rm -rf ${SRS_OBJS}/${SRS_PLATFORM}/${OPENSSL_CANDIDATE} ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/openssl \
+        rm -rf ${SRS_OBJS}/${SRS_PLATFORM}/${OPENSSL_CANDIDATE} ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/openssl \
             ${SRS_OBJS}/openssl &&
         ${OPENSSL_UNZIP} &&
         (
             cd ${SRS_OBJS}/${SRS_PLATFORM}/${OPENSSL_CANDIDATE} &&
-            ${OPENSSL_CONFIG} --prefix=${SRS_DEPENDS_LIBS}/${SRS_PLATFORM}/3rdpatry/openssl $OPENSSL_OPTIONS
+            chmod +x ./config ./Configure &&
+            ${OPENSSL_CONFIG} --prefix=${SRS_DEPENDS_LIBS}/${SRS_PLATFORM}/3rdparty/openssl $OPENSSL_OPTIONS
         ) &&
         make -C ${SRS_OBJS}/${SRS_PLATFORM}/${OPENSSL_CANDIDATE} CC=${SRS_TOOL_CC} AR="${OPENSSL_AR}" \
             LD=${SRS_TOOL_LD} RANDLIB=${SRS_TOOL_RANDLIB} ${SRS_JOBS} &&
         make -C ${SRS_OBJS}/${SRS_PLATFORM}/${OPENSSL_CANDIDATE} install_sw &&
-        cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/openssl ${SRS_OBJS}/ &&
+        cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/openssl ${SRS_OBJS}/ &&
         echo "The $OPENSSL_CANDIDATE is ok."
     fi
     # check status
@@ -585,7 +466,10 @@ fi
 #####################################################################################
 # srtp
 #####################################################################################
-if [[ $SRS_RTC == YES ]]; then
+if [[ $SRS_RTC == YES && $SRS_USE_SYS_SRTP == YES ]]; then
+    echo "Warning: Use system libsrtp, without compiling srtp."
+fi
+if [[ $SRS_RTC == YES && $SRS_USE_SYS_SRTP == NO ]]; then
     SRTP_OPTIONS=""
     # To eliminate warnings, see https://stackoverflow.com/a/34208904/17679565
     #       was built for newer macOS version (11.6) than being linked (11.0)
@@ -608,13 +492,13 @@ if [[ $SRS_RTC == YES ]]; then
         SRTP_OPTIONS="$SRTP_OPTIONS --build=loongarch64-unknown-linux-gnu"
     fi
     # Copy and patch source files, then build and install libsrtp.
-    if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/srtp2/lib/libsrtp2.a ]]; then
+    if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/srtp2/lib/libsrtp2.a ]]; then
         rm -rf ${SRS_OBJS}/srtp2 &&
-        cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/srtp2 ${SRS_OBJS} &&
+        cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/srtp2 ${SRS_OBJS} &&
         echo "The libsrtp-2-fit is ok."
     else
         echo "Building libsrtp-2-fit."
-        rm -rf ${SRS_OBJS}/${SRS_PLATFORM}/libsrtp-2-fit ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/srtp2 \
+        rm -rf ${SRS_OBJS}/${SRS_PLATFORM}/libsrtp-2-fit ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/srtp2 \
             ${SRS_OBJS}/srtp2 &&
         cp -rf ${SRS_WORKDIR}/3rdparty/libsrtp-2-fit ${SRS_OBJS}/${SRS_PLATFORM}/ &&
         # For cygwin64, the patch is not available, so use sed instead.
@@ -629,7 +513,7 @@ if [[ $SRS_RTC == YES ]]; then
         fi &&
         (
             cd ${SRS_OBJS}/${SRS_PLATFORM}/libsrtp-2-fit &&
-            $SRTP_CONFIGURE ${SRTP_OPTIONS} --prefix=${SRS_DEPENDS_LIBS}/${SRS_PLATFORM}/3rdpatry/srtp2
+            $SRTP_CONFIGURE ${SRTP_OPTIONS} --prefix=${SRS_DEPENDS_LIBS}/${SRS_PLATFORM}/3rdparty/srtp2
         ) &&
         # Sometimes it might fail because autoconf failed to generate crypto/include.config.h
         if [[ $SRS_CYGWIN64 == YES ]]; then
@@ -642,7 +526,7 @@ if [[ $SRS_RTC == YES ]]; then
         fi &&
         make -C ${SRS_OBJS}/${SRS_PLATFORM}/libsrtp-2-fit ${SRS_JOBS} &&
         make -C ${SRS_OBJS}/${SRS_PLATFORM}/libsrtp-2-fit install &&
-        cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/srtp2 ${SRS_OBJS}/ &&
+        cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/srtp2 ${SRS_OBJS}/ &&
         echo "The libsrtp-2-fit is ok."
     fi
     ret=$?; if [[ $ret -ne 0 ]]; then echo "Build libsrtp failed, ret=$ret"; exit $ret; fi
@@ -652,28 +536,29 @@ fi
 # libopus, for WebRTC to transcode AAC with Opus.
 #####################################################################################
 # For cross build, we use opus of FFmpeg, so we don't build the libopus.
-if [[ $SRS_RTC == YES && $SRS_CROSS_BUILD != YES ]]; then
+if [[ $SRS_RTC == YES && $SRS_USE_SYS_FFMPEG != YES && $SRS_FFMPEG_OPUS != YES ]]; then
     # Only build static libraries if no shared FFmpeg.
-    if [[ $SRS_SHARED_FFMPEG == NO ]]; then
+    if [[ $SRS_SHARED_FFMPEG != YES ]]; then
         OPUS_OPTIONS="--disable-shared --disable-doc"
     fi
     if [[ $OS_IS_LOONGARCH64 == YES ]]; then
         OPUS_OPTIONS="$OPUS_OPTIONS --build=loongarch64-unknown-linux-gnu"
     fi
-    if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/opus/lib/libopus.a ]]; then
-        rm -rf ${SRS_OBJS}/opus && cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/opus ${SRS_OBJS}/ &&
+    if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/opus/lib/libopus.a ]]; then
+        rm -rf ${SRS_OBJS}/opus && cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/opus ${SRS_OBJS}/ &&
         echo "The opus-1.3.1 is ok."
     else
         echo "Building opus-1.3.1." &&
-        rm -rf ${SRS_OBJS}/${SRS_PLATFORM}/opus-1.3.1 ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/opus ${SRS_OBJS}/opus &&
+        rm -rf ${SRS_OBJS}/${SRS_PLATFORM}/opus-1.3.1 ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/opus ${SRS_OBJS}/opus &&
         tar xf ${SRS_WORKDIR}/3rdparty/opus-1.3.1.tar.gz -C ${SRS_OBJS}/${SRS_PLATFORM} &&
         (
-            cd ${SRS_OBJS}/${SRS_PLATFORM}/opus-1.3.1 &&
-            ./configure --prefix=${SRS_DEPENDS_LIBS}/${SRS_PLATFORM}/3rdpatry/opus --enable-static $OPUS_OPTIONS
+            # Opus requires automake 1.15, and fails for automake 1.16+, so we run autoreconf to fix it.
+            cd ${SRS_OBJS}/${SRS_PLATFORM}/opus-1.3.1 && autoreconf &&
+            ./configure --prefix=${SRS_DEPENDS_LIBS}/${SRS_PLATFORM}/3rdparty/opus --enable-static $OPUS_OPTIONS
         ) &&
         make -C ${SRS_OBJS}/${SRS_PLATFORM}/opus-1.3.1 ${SRS_JOBS} &&
         make -C ${SRS_OBJS}/${SRS_PLATFORM}/opus-1.3.1 install &&
-        cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/opus ${SRS_OBJS}/ &&
+        cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/opus ${SRS_OBJS}/ &&
         echo "The opus-1.3.1 is ok."
     fi
     if [ ! -f ${SRS_OBJS}/opus/lib/libopus.a ]; then echo "Build opus-1.3.1 failed."; exit -1; fi
@@ -682,16 +567,20 @@ fi
 #####################################################################################
 # ffmpeg-fit, for WebRTC to transcode AAC with Opus.
 #####################################################################################
-if [[ $SRS_FFMPEG_FIT == YES ]]; then
-    FFMPEG_OPTIONS=""
-    if [[ $SRS_CROSS_BUILD == YES ]]; then
-      FFMPEG_CONFIGURE=./configure
-    else
-      FFMPEG_CONFIGURE="env PKG_CONFIG_PATH=${SRS_DEPENDS_LIBS}/opus/lib/pkgconfig ./configure"
+if [[ $SRS_FFMPEG_FIT == YES && $SRS_USE_SYS_FFMPEG == YES ]]; then
+    echo "Warning: Use system ffmpeg, without compiling ffmpeg."
+fi
+if [[ $SRS_FFMPEG_FIT == YES && $SRS_USE_SYS_FFMPEG == NO ]]; then
+    FFMPEG_CONFIGURE="env SRS_FFMPEG_FIT=on"
+    if [[ $SRS_FFMPEG_OPUS != YES ]]; then
+        FFMPEG_CONFIGURE="$FFMPEG_CONFIGURE PKG_CONFIG_PATH=${SRS_DEPENDS_LIBS}/opus/lib/pkgconfig"
     fi
+    FFMPEG_CONFIGURE="$FFMPEG_CONFIGURE ./configure"
 
+    # Disable all features, note that there are still some options need to be disabled.
+    FFMPEG_OPTIONS="--disable-everything"
     # Disable all asm for FFmpeg, to compatible with ARM CPU.
-    FFMPEG_OPTIONS="--disable-asm --disable-x86asm --disable-inline-asm"
+    FFMPEG_OPTIONS="$FFMPEG_OPTIONS --disable-asm --disable-x86asm --disable-inline-asm"
     # Only build static libraries if no shared FFmpeg.
     if [[ $SRS_SHARED_FFMPEG == YES ]]; then
         FFMPEG_OPTIONS="$FFMPEG_OPTIONS --enable-shared"
@@ -706,36 +595,38 @@ if [[ $SRS_FFMPEG_FIT == YES ]]; then
         FFMPEG_OPTIONS="$FFMPEG_OPTIONS --cross-prefix=$SRS_CROSS_BUILD_PREFIX"
         FFMPEG_OPTIONS="$FFMPEG_OPTIONS --cc=${SRS_TOOL_CC} --cxx=${SRS_TOOL_CXX} --ar=${SRS_TOOL_AR} --ld=${SRS_TOOL_LD}"
     fi
-    # For cross-build.
-    if [[ $SRS_CROSS_BUILD == YES ]]; then
-        # Note that the audio might be corrupted, if use FFmpeg native opus.
+    # For audio codec opus, use FFmpeg native one, or external libopus.
+    if [[ $SRS_FFMPEG_OPUS == YES ]]; then
+        # TODO: FIXME: Note that the audio might be corrupted, see https://github.com/ossrs/srs/issues/3140
         FFMPEG_OPTIONS="$FFMPEG_OPTIONS --enable-decoder=opus --enable-encoder=opus"
     else
         FFMPEG_OPTIONS="$FFMPEG_OPTIONS --enable-decoder=libopus --enable-encoder=libopus --enable-libopus"
     fi
+    # Disable features of ffmpeg.
+    FFMPEG_OPTIONS="$FFMPEG_OPTIONS --disable-avdevice --disable-avformat --disable-swscale --disable-postproc --disable-avfilter --disable-network"
+    FFMPEG_OPTIONS="$FFMPEG_OPTIONS --disable-dwt --disable-error-resilience --disable-lsp --disable-lzo --disable-faan --disable-pixelutils"
+    FFMPEG_OPTIONS="$FFMPEG_OPTIONS --disable-hwaccels --disable-devices --disable-audiotoolbox --disable-videotoolbox --disable-cuvid"
+    FFMPEG_OPTIONS="$FFMPEG_OPTIONS --disable-d3d11va --disable-dxva2 --disable-ffnvcodec --disable-nvdec --disable-nvenc --disable-v4l2-m2m --disable-vaapi"
+    FFMPEG_OPTIONS="$FFMPEG_OPTIONS --disable-vdpau --disable-appkit --disable-coreimage --disable-avfoundation --disable-securetransport --disable-iconv"
+    FFMPEG_OPTIONS="$FFMPEG_OPTIONS --disable-lzma --disable-sdl2"
+    # Enable FFmpeg native AAC encoder and decoder.
+    FFMPEG_OPTIONS="$FFMPEG_OPTIONS --enable-decoder=aac --enable-decoder=aac_fixed --enable-decoder=aac_latm --enable-encoder=aac"
+    # Enable FFmpeg native MP3 decoder, which depends on dct.
+    FFMPEG_OPTIONS="$FFMPEG_OPTIONS --enable-decoder=mp3 --enable-dct"
 
-    if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/ffmpeg/lib/libavcodec.a ]]; then
-        rm -rf ${SRS_OBJS}/ffmpeg && cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/ffmpeg ${SRS_OBJS}/ &&
+    if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/ffmpeg/lib/libavcodec.a ]]; then
+        rm -rf ${SRS_OBJS}/ffmpeg && cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/ffmpeg ${SRS_OBJS}/ &&
         echo "The ffmpeg-4-fit is ok."
     else
         echo "Building ffmpeg-4-fit." &&
-        rm -rf ${SRS_OBJS}/${SRS_PLATFORM}/ffmpeg-4-fit ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/ffmpeg \
+        rm -rf ${SRS_OBJS}/${SRS_PLATFORM}/ffmpeg-4-fit ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/ffmpeg \
             ${SRS_OBJS}/ffmpeg &&
         cp -rf ${SRS_WORKDIR}/3rdparty/ffmpeg-4-fit ${SRS_OBJS}/${SRS_PLATFORM}/ &&
         (
             cd ${SRS_OBJS}/${SRS_PLATFORM}/ffmpeg-4-fit &&
-            $FFMPEG_CONFIGURE \
-              --prefix=${SRS_DEPENDS_LIBS}/${SRS_PLATFORM}/3rdpatry/ffmpeg --pkg-config=pkg-config \
-              --pkg-config-flags="--static" --extra-libs="-lpthread" --extra-libs="-lm" \
-              --disable-everything ${FFMPEG_OPTIONS} \
-              --disable-programs --disable-doc --disable-htmlpages --disable-manpages --disable-podpages --disable-txtpages \
-              --disable-avdevice --disable-avformat --disable-swscale --disable-postproc --disable-avfilter --disable-network \
-              --disable-dct --disable-dwt --disable-error-resilience --disable-lsp --disable-lzo --disable-faan --disable-pixelutils \
-              --disable-hwaccels --disable-devices --disable-audiotoolbox --disable-videotoolbox --disable-cuvid \
-              --disable-d3d11va --disable-dxva2 --disable-ffnvcodec --disable-nvdec --disable-nvenc --disable-v4l2-m2m --disable-vaapi \
-              --disable-vdpau --disable-appkit --disable-coreimage --disable-avfoundation --disable-securetransport --disable-iconv \
-              --disable-lzma --disable-sdl2 --enable-decoder=aac --enable-decoder=aac_fixed --enable-decoder=aac_latm \
-              --enable-encoder=aac
+            $FFMPEG_CONFIGURE --prefix=${SRS_DEPENDS_LIBS}/${SRS_PLATFORM}/3rdparty/ffmpeg \
+                --pkg-config=pkg-config --pkg-config-flags='--static' --extra-libs='-lpthread' --extra-libs='-lm' \
+                ${FFMPEG_OPTIONS}
         ) &&
         # See https://www.laoyuyu.me/2019/05/23/android/clang_compile_ffmpeg/
         if [[ $SRS_CROSS_BUILD == YES ]]; then
@@ -745,7 +636,7 @@ if [[ $SRS_FFMPEG_FIT == YES ]]; then
           # For MIPS, which fail with:
           #     ./libavutil/libm.h:54:32: error: static declaration of 'cbrt' follows non-static declaration
           #     /root/openwrt/staging_dir/toolchain-mipsel_24kc_gcc-8.4.0_musl/include/math.h:163:13: note: previous declaration of 'cbrt' was here
-          if [[ $SRS_CROSS_BUILD_ARCH == "mipsel" || $SRS_CROSS_BUILD_ARCH == "arm" ]]; then
+          if [[ $SRS_CROSS_BUILD_ARCH == "mipsel" || $SRS_CROSS_BUILD_ARCH == "arm" || $SRS_CROSS_BUILD_ARCH == "aarch64" ]]; then
             sed -i -e 's/#define HAVE_CBRT 0/#define HAVE_CBRT 1/g'         ${SRS_OBJS}/${SRS_PLATFORM}/ffmpeg-4-fit/config.h &&
             sed -i -e 's/#define HAVE_CBRTF 0/#define HAVE_CBRTF 1/g'       ${SRS_OBJS}/${SRS_PLATFORM}/ffmpeg-4-fit/config.h &&
             sed -i -e 's/#define HAVE_COPYSIGN 0/#define HAVE_COPYSIGN 1/g' ${SRS_OBJS}/${SRS_PLATFORM}/ffmpeg-4-fit/config.h &&
@@ -763,7 +654,7 @@ if [[ $SRS_FFMPEG_FIT == YES ]]; then
         fi &&
         make -C ${SRS_OBJS}/${SRS_PLATFORM}/ffmpeg-4-fit ${SRS_JOBS} &&
         make -C ${SRS_OBJS}/${SRS_PLATFORM}/ffmpeg-4-fit install &&
-        cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/ffmpeg ${SRS_OBJS}/ &&
+        cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/ffmpeg ${SRS_OBJS}/ &&
         echo "The ffmpeg-4-fit is ok."
     fi
     # check status
@@ -796,7 +687,10 @@ fi
 #####################################################################################
 # SRT module, https://github.com/ossrs/srs/issues/1147#issuecomment-577469119
 #####################################################################################
-if [[ $SRS_SRT == YES ]]; then
+if [[ $SRS_SRT == YES && $SRS_USE_SYS_SRT == YES ]]; then
+    echo "Warning: Use system libsrt, without compiling srt."
+fi
+if [[ $SRS_SRT == YES && $SRS_USE_SYS_SRT == NO ]]; then
     # Always disable c++11 for libsrt, because only the srt-app requres it.
     LIBSRT_OPTIONS="--enable-apps=0  --enable-static=1 --enable-c++11=0"
     if [[ $SRS_SHARED_SRT == YES ]]; then
@@ -815,29 +709,30 @@ if [[ $SRS_SRT == YES ]]; then
         LIBSRT_OPTIONS="$LIBSRT_OPTIONS --with-compiler-prefix=$SRT_COMPILER_PREFIX"
     fi
 
-    if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/srt/lib/libsrt.a ]]; then
-        rm -rf ${SRS_OBJS}/srt && cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/srt ${SRS_OBJS}/ &&
+    if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/srt/lib/libsrt.a ]]; then
+        rm -rf ${SRS_OBJS}/srt && cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/srt ${SRS_OBJS}/ &&
         echo "libsrt-1-fit is ok."
     else
-        if [[ ! -d ${SRS_OBJS}/openssl/lib/pkgconfig ]]; then
+        if [[ $SRS_USE_SYS_SSL != YES && ! -d ${SRS_OBJS}/openssl/lib/pkgconfig ]]; then
             echo "OpenSSL pkgconfig no found, build srt-1-fit failed."
             exit -1
         fi
         echo "Build srt-1-fit" &&
-        rm -rf ${SRS_OBJS}/${SRS_PLATFORM}/srt-1-fit ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/srt ${SRS_OBJS}/srt &&
+        rm -rf ${SRS_OBJS}/${SRS_PLATFORM}/srt-1-fit ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/srt ${SRS_OBJS}/srt &&
         cp -rf ${SRS_WORKDIR}/3rdparty/srt-1-fit ${SRS_OBJS}/${SRS_PLATFORM}/ &&
+        patch -p0 -R ${SRS_OBJS}/${SRS_PLATFORM}/srt-1-fit/srtcore/api.cpp ${SRS_WORKDIR}/3rdparty/patches/srt/api.cpp-01.patch &&
         (
             cd ${SRS_OBJS}/${SRS_PLATFORM}/srt-1-fit &&
             env PKG_CONFIG_PATH=${SRS_DEPENDS_LIBS}/openssl/lib/pkgconfig \
-                ./configure --prefix=${SRS_DEPENDS_LIBS}/${SRS_PLATFORM}/3rdpatry/srt $LIBSRT_OPTIONS
+                ./configure --prefix=${SRS_DEPENDS_LIBS}/${SRS_PLATFORM}/3rdparty/srt $LIBSRT_OPTIONS
         ) &&
         make -C ${SRS_OBJS}/${SRS_PLATFORM}/srt-1-fit ${SRS_JOBS} &&
         make -C ${SRS_OBJS}/${SRS_PLATFORM}/srt-1-fit install &&
         # If exists lib64 of libsrt, copy it to lib
-        if [[ -d ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/srt/lib64 ]]; then
-            cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/srt/lib64 ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/srt/lib
+        if [[ -d ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/srt/lib64 ]]; then
+            cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/srt/lib64 ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/srt/lib
         fi &&
-        cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/srt ${SRS_OBJS}/ &&
+        cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/srt ${SRS_OBJS}/ &&
         echo "libsrt-1-fit is ok."
     fi
     ret=$?; if [[ $ret -ne 0 ]]; then echo "Build srt-1-fit failed, ret=$ret"; exit $ret; fi
@@ -847,14 +742,14 @@ fi
 # build utest code
 #####################################################################################
 if [[ $SRS_UTEST == YES ]]; then
-    if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/gtest/googletest/include/gtest/gtest.h ]]; then
-        rm -rf ${SRS_OBJS}/gtest && cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/gtest ${SRS_OBJS}/ &&
+    if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/gtest/googletest/include/gtest/gtest.h ]]; then
+        rm -rf ${SRS_OBJS}/gtest && cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/gtest ${SRS_OBJS}/ &&
         echo "The gtest-fit is ok."
     else
         echo "Build gtest-fit" &&
-        rm -rf ${SRS_OBJS}/${SRS_PLATFORM}gtest-fit ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/gtest ${SRS_OBJS}/gtest &&
-        cp -rf ${SRS_WORKDIR}/3rdparty/gtest-fit ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/gtest &&
-        cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/gtest ${SRS_OBJS}/ &&
+        rm -rf ${SRS_OBJS}/${SRS_PLATFORM}gtest-fit ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/gtest ${SRS_OBJS}/gtest &&
+        cp -rf ${SRS_WORKDIR}/3rdparty/gtest-fit ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/gtest &&
+        cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/gtest ${SRS_OBJS}/ &&
         echo "The gtest-fit is ok."
     fi
     # check status
@@ -865,22 +760,22 @@ fi
 # build gperf code
 #####################################################################################
 if [[ $SRS_GPERF == YES ]]; then
-    if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/gperf/bin/pprof ]]; then
-        rm -rf ${SRS_OBJS}/gperf && cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/gperf ${SRS_OBJS}/ &&
+    if [[ -f ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/gperf/bin/pprof ]]; then
+        rm -rf ${SRS_OBJS}/gperf && cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/gperf ${SRS_OBJS}/ &&
         cp -f ${SRS_OBJS}/gperf/bin/pprof ${SRS_OBJS}/ &&
         echo "The gperftools-2-fit is ok."
     else
         echo "Build gperftools-2-fit" &&
-        rm -rf ${SRS_OBJS}/${SRS_PLATFORM}/gperftools-2-fit ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/gperf \
+        rm -rf ${SRS_OBJS}/${SRS_PLATFORM}/gperftools-2-fit ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/gperf \
             ${SRS_OBJS}/gperf ${SRS_OBJS}/pprof &&
         cp -rf ${SRS_WORKDIR}/3rdparty/gperftools-2-fit ${SRS_OBJS}/${SRS_PLATFORM}/ &&
         (
             cd ${SRS_OBJS}/${SRS_PLATFORM}/gperftools-2-fit &&
-            ./configure --prefix=${SRS_DEPENDS_LIBS}/${SRS_PLATFORM}/3rdpatry/gperf --enable-frame-pointers
+            ./configure --prefix=${SRS_DEPENDS_LIBS}/${SRS_PLATFORM}/3rdparty/gperf --enable-frame-pointers
         ) &&
         make -C ${SRS_OBJS}/${SRS_PLATFORM}/gperftools-2-fit ${SRS_JOBS} &&
         make -C ${SRS_OBJS}/${SRS_PLATFORM}/gperftools-2-fit install &&
-        cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdpatry/gperf ${SRS_OBJS}/ &&
+        cp -rf ${SRS_OBJS}/${SRS_PLATFORM}/3rdparty/gperf ${SRS_OBJS}/ &&
         cp -f ${SRS_OBJS}/gperf/bin/pprof ${SRS_OBJS}/ &&
         echo "The gperftools-2-fit is ok."
     fi

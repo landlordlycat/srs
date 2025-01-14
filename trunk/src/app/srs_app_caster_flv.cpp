@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #include <srs_app_caster_flv.hpp>
@@ -215,10 +215,7 @@ srs_error_t SrsDynamicHttpConn::proxy(ISrsHttpResponseWriter* w, ISrsHttpMessage
     
     output = o;
     srs_trace("flv: proxy %s:%d %s to %s", ip.c_str(), port, r->uri().c_str(), output.c_str());
-    
-    char* buffer = new char[SRS_HTTP_FLV_STREAM_BUFFER];
-    SrsAutoFreeA(char, buffer);
-    
+
     ISrsHttpResponseReader* rr = r->body_reader();
     SrsHttpFileReader reader(rr);
     SrsFlvDecoder dec;

@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_PROTOCOL_UTILITY_HPP
@@ -148,15 +148,15 @@ extern bool srs_string_is_http(std::string url);
 extern bool srs_string_is_rtmp(std::string url);
 
 // Whether string is digit number
-//      is_digit("0")  === true
-//      is_digit("0000000000")  === true
-//      is_digit("1234567890")  === true
-//      is_digit("0123456789")  === true
-//      is_digit("1234567890a") === false
-//      is_digit("a1234567890") === false
-//      is_digit("10e3") === false
-//      is_digit("!1234567890") === false
-//      is_digit("") === false
+//      is_digit("0")  is true
+//      is_digit("0000000000")  is true
+//      is_digit("1234567890")  is true
+//      is_digit("0123456789")  is true
+//      is_digit("1234567890a") is false
+//      is_digit("a1234567890") is false
+//      is_digit("10e3") is false
+//      is_digit("!1234567890") is false
+//      is_digit("") is false
 extern bool srs_is_digit_number(std::string str);
 
 // Get local ip, fill to @param ips
@@ -195,6 +195,13 @@ extern srs_error_t srs_ioutil_read_all(ISrsReader* in, std::string& content);
 // Get system uname info.
 extern utsname* srs_get_system_uname_info();
 #endif
+
+// Dump string(str in length) to hex, it will process min(limit, length) chars.
+// Append seperator between each elem, and newline when exceed line_limit, '\0' to ignore.
+extern std::string srs_string_dumps_hex(const std::string& str);
+extern std::string srs_string_dumps_hex(const char* str, int length);
+extern std::string srs_string_dumps_hex(const char* str, int length, int limit);
+extern std::string srs_string_dumps_hex(const char* str, int length, int limit, char seperator, int line_limit, char newline);
 
 #endif
 

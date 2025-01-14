@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 #include <srs_utest_http.hpp>
 
@@ -140,6 +140,18 @@ string mock_http_response3(int status, string content)
     ss << "HTTP/1.1 " << status << " " << srs_generate_http_status_text(status) << "\r\n"
         << "Server:" << "\r\n"
         << "\r\n"
+        << content;
+    return ss.str();
+}
+
+string mock_http_response4(int status, string content)
+{
+    string m3u8_header = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1,AVERAGE-BANDWIDTH=1\n";
+
+    stringstream ss;
+    ss << "HTTP/1.1 " << status << " " << srs_generate_http_status_text(status) << "\r\n"
+        << "Content-Length: " << content.length() + m3u8_header.length() << "\r\n\r\n"
+        << m3u8_header
         << content;
     return ss.str();
 }
@@ -608,7 +620,7 @@ VOID TEST(ProtocolHTTPTest, HTTPHeaderOrder)
 
     if (true) {
         SrsJsonObject* o = SrsJsonObject::object();
-        SrsAutoFree(SrsJsonObject, o);
+        SrsUniquePtr<SrsJsonObject> o_uptr(o);
         h.dumps(o);
 
         ASSERT_EQ(3, o->count());
@@ -621,7 +633,7 @@ VOID TEST(ProtocolHTTPTest, HTTPHeaderOrder)
         h.del("User-Agent");
 
         SrsJsonObject* o = SrsJsonObject::object();
-        SrsAutoFree(SrsJsonObject, o);
+        SrsUniquePtr<SrsJsonObject> o_uptr(o);
         h.dumps(o);
 
         ASSERT_EQ(2, o->count());
@@ -633,7 +645,7 @@ VOID TEST(ProtocolHTTPTest, HTTPHeaderOrder)
         h.del("Server");
 
         SrsJsonObject* o = SrsJsonObject::object();
-        SrsAutoFree(SrsJsonObject, o);
+        SrsUniquePtr<SrsJsonObject> o_uptr(o);
         h.dumps(o);
 
         ASSERT_EQ(1, o->count());
@@ -644,7 +656,7 @@ VOID TEST(ProtocolHTTPTest, HTTPHeaderOrder)
         h.del("Connection");
 
         SrsJsonObject* o = SrsJsonObject::object();
-        SrsAutoFree(SrsJsonObject, o);
+        SrsUniquePtr<SrsJsonObject> o_uptr(o);
         h.dumps(o);
 
         ASSERT_EQ(0, o->count());
@@ -736,6 +748,7 @@ VOID TEST(ProtocolHTTPTest, HTTPServerMuxerImplicitHandler)
         HELPER_ASSERT_SUCCESS(s.handle("/api/", h0));
 
         MockHttpHandler* h1 = new MockHttpHandler("Done");
+        SrsUniquePtr<MockHttpHandler> o_uptr(h1);
         HELPER_EXPECT_FAILED(s.handle("/api/", h1));
     }
 
@@ -880,6 +893,7 @@ VOID TEST(ProtocolHTTPTest, HTTPServerMuxerBasic)
         HELPER_ASSERT_SUCCESS(s.initialize());
 
         MockHttpHandler* h0 = new MockHttpHandler("Hello, world!");
+        SrsUniquePtr<MockHttpHandler> o_uptr(h0);
         HELPER_EXPECT_FAILED(s.handle("", h0));
     }
 
@@ -1047,11 +1061,10 @@ VOID TEST(ProtocolHTTPTest, HTTPServerMuxerCORS)
         r.set_basic(HTTP_REQUEST, HTTP_POST, (http_status)200, -1);
         HELPER_ASSERT_SUCCESS(r.set_url("/index.html", false));
 
-        SrsHttpCorsMux cs;
-        HELPER_ASSERT_SUCCESS(cs.initialize(&s, true));
+        SrsHttpCorsMux cs(&s);
+        HELPER_ASSERT_SUCCESS(cs.initialize(true));
 
         HELPER_ASSERT_SUCCESS(cs.serve_http(&w, &r));
-        __MOCK_HTTP_EXPECT_STREQ(200, "Hello, world!", w);
     }
 
     // If CORS enabled, response OPTIONS with ok
@@ -1067,8 +1080,8 @@ VOID TEST(ProtocolHTTPTest, HTTPServerMuxerCORS)
         r.set_basic(HTTP_REQUEST, HTTP_OPTIONS, (http_status)200, -1);
         HELPER_ASSERT_SUCCESS(r.set_url("/index.html", false));
 
-        SrsHttpCorsMux cs;
-        HELPER_ASSERT_SUCCESS(cs.initialize(&s, true));
+        SrsHttpCorsMux cs(&s);
+        HELPER_ASSERT_SUCCESS(cs.initialize(true));
 
         HELPER_ASSERT_SUCCESS(cs.serve_http(&w, &r));
         __MOCK_HTTP_EXPECT_STREQ(200, "", w);
@@ -1087,11 +1100,10 @@ VOID TEST(ProtocolHTTPTest, HTTPServerMuxerCORS)
         r.set_basic(HTTP_REQUEST, HTTP_POST, (http_status)200, -1);
         HELPER_ASSERT_SUCCESS(r.set_url("/index.html", false));
 
-        SrsHttpCorsMux cs;
-        HELPER_ASSERT_SUCCESS(cs.initialize(&s, false));
+        SrsHttpCorsMux cs(&s);
+        HELPER_ASSERT_SUCCESS(cs.initialize(false));
 
         HELPER_ASSERT_SUCCESS(cs.serve_http(&w, &r));
-        __MOCK_HTTP_EXPECT_STREQ(200, "Hello, world!", w);
     }
 
     // If CORS not enabled, response error for options.
@@ -1107,8 +1119,8 @@ VOID TEST(ProtocolHTTPTest, HTTPServerMuxerCORS)
         r.set_basic(HTTP_REQUEST, HTTP_OPTIONS, (http_status)200, -1);
         HELPER_ASSERT_SUCCESS(r.set_url("/index.html", false));
 
-        SrsHttpCorsMux cs;
-        HELPER_ASSERT_SUCCESS(cs.initialize(&s, false));
+        SrsHttpCorsMux cs(&s);
+        HELPER_ASSERT_SUCCESS(cs.initialize(false));
 
         HELPER_ASSERT_SUCCESS(cs.serve_http(&w, &r));
         __MOCK_HTTP_EXPECT_STREQ(405, "", w);
@@ -1125,10 +1137,253 @@ VOID TEST(ProtocolHTTPTest, HTTPServerMuxerCORS)
         SrsHttpMessage r(NULL, NULL);
         HELPER_ASSERT_SUCCESS(r.set_url("/index.html", false));
 
-        SrsHttpCorsMux cs;
-        HELPER_ASSERT_SUCCESS(cs.initialize(&s, true));
+        SrsHttpCorsMux cs(&s);
+        HELPER_ASSERT_SUCCESS(cs.initialize(true));
 
         HELPER_ASSERT_SUCCESS(cs.serve_http(&w, &r));
+    }
+}
+
+VOID TEST(ProtocolHTTPTest, HTTPServerMuxerAuth)
+{
+    srs_error_t err;
+
+    if (true) {
+        SrsHttpServeMux s;
+        HELPER_ASSERT_SUCCESS(s.initialize());
+
+        MockHttpHandler* hroot = new MockHttpHandler("Hello, world!");
+        HELPER_ASSERT_SUCCESS(s.handle("/", hroot));
+
+        MockResponseWriter w;
+        SrsHttpMessage r(NULL, NULL);
+        r.set_basic(HTTP_REQUEST, HTTP_POST, (http_status)200, -1);
+        
+        SrsHttpHeader h ;
+        h.set("Authorization", "Basic YWRtaW46YWRtaW4="); // admin:admin
+        r.set_header(&h, false);
+
+        HELPER_ASSERT_SUCCESS(r.set_url("/index.html", false));
+
+        SrsHttpAuthMux auth(&s);
+        HELPER_ASSERT_SUCCESS(auth.initialize(true, "admin", "admin"));
+
+        HELPER_ASSERT_SUCCESS(auth.serve_http(&w, &r));
+        __MOCK_HTTP_EXPECT_STREQ(200, "Hello, world!", w);
+    }
+
+    // incorrect token
+    if (true) {
+        SrsHttpServeMux s;
+        HELPER_ASSERT_SUCCESS(s.initialize());
+
+        MockHttpHandler* hroot = new MockHttpHandler("Hello, world!");
+        HELPER_ASSERT_SUCCESS(s.handle("/", hroot));
+
+        MockResponseWriter w;
+        SrsHttpMessage r(NULL, NULL);
+        r.set_basic(HTTP_REQUEST, HTTP_POST, (http_status)200, -1);
+
+        SrsHttpHeader h ;
+        h.set("Authorization", "Basic YWRtaW46YWRtaW4="); // admin:admin
+        r.set_header(&h, false);
+
+        HELPER_ASSERT_SUCCESS(r.set_url("/api/v1/clients/", false));
+
+        SrsHttpAuthMux auth(&s);
+        HELPER_ASSERT_SUCCESS(auth.initialize(true, "admin", "123456"));
+
+        HELPER_ASSERT_SUCCESS(auth.serve_http(&w, &r));
+        EXPECT_EQ(401, w.w->status);
+    }
+
+    // incorrect token, duplicate Basic
+    if (true) {
+        SrsHttpServeMux s;
+        HELPER_ASSERT_SUCCESS(s.initialize());
+
+        MockHttpHandler* hroot = new MockHttpHandler("Hello, world!");
+        HELPER_ASSERT_SUCCESS(s.handle("/", hroot));
+
+        MockResponseWriter w;
+        SrsHttpMessage r(NULL, NULL);
+        r.set_basic(HTTP_REQUEST, HTTP_POST, (http_status)200, -1);
+
+        SrsHttpHeader h ;
+        h.set("Authorization", "Basic BasicYWRtaW46YWRtaW4="); // duplicate 'Basic'
+        r.set_header(&h, false);
+
+        HELPER_ASSERT_SUCCESS(r.set_url("/api/v1/clients/", false));
+
+        SrsHttpAuthMux auth(&s);
+        HELPER_ASSERT_SUCCESS(auth.initialize(true, "admin", "admin"));
+
+        HELPER_ASSERT_SUCCESS(auth.serve_http(&w, &r));
+        EXPECT_EQ(401, w.w->status);
+    }
+
+    // Authorization NOT start with 'Basic '
+    if (true) {
+        SrsHttpServeMux s;
+        HELPER_ASSERT_SUCCESS(s.initialize());
+
+        MockHttpHandler* hroot = new MockHttpHandler("Hello, world!");
+        HELPER_ASSERT_SUCCESS(s.handle("/", hroot));
+
+        MockResponseWriter w;
+        SrsHttpMessage r(NULL, NULL);
+        r.set_basic(HTTP_REQUEST, HTTP_POST, (http_status)200, -1);
+        
+        SrsHttpHeader h ;
+        h.set("Authorization", "YWRtaW46YWRtaW4="); // admin:admin
+        r.set_header(&h, false);
+
+        HELPER_ASSERT_SUCCESS(r.set_url("/api/v1/clients/", false));
+
+        SrsHttpAuthMux auth(&s);
+        HELPER_ASSERT_SUCCESS(auth.initialize(true, "admin", "admin"));
+
+        HELPER_ASSERT_SUCCESS(auth.serve_http(&w, &r));
+        EXPECT_EQ(401, w.w->status);
+    }
+
+    // NOT base64
+    if (true) {
+        SrsHttpServeMux s;
+        HELPER_ASSERT_SUCCESS(s.initialize());
+
+        MockHttpHandler* hroot = new MockHttpHandler("Hello, world!");
+        HELPER_ASSERT_SUCCESS(s.handle("/", hroot));
+
+        MockResponseWriter w;
+        SrsHttpMessage r(NULL, NULL);
+        r.set_basic(HTTP_REQUEST, HTTP_POST, (http_status)200, -1);
+        
+        SrsHttpHeader h ;
+        h.set("Authorization", "Basic admin:admin"); // admin:admin
+        r.set_header(&h, false);
+
+        HELPER_ASSERT_SUCCESS(r.set_url("/api/v1/clients/", false));
+
+        SrsHttpAuthMux auth(&s);
+        HELPER_ASSERT_SUCCESS(auth.initialize(true, "admin", "admin"));
+
+        HELPER_ASSERT_SUCCESS(auth.serve_http(&w, &r));
+        EXPECT_EQ(401, w.w->status);
+    }
+
+    // empty Authorization
+    if (true) {
+        SrsHttpServeMux s;
+        HELPER_ASSERT_SUCCESS(s.initialize());
+
+        MockHttpHandler* hroot = new MockHttpHandler("Hello, world!");
+        HELPER_ASSERT_SUCCESS(s.handle("/", hroot));
+
+        MockResponseWriter w;
+        SrsHttpMessage r(NULL, NULL);
+        r.set_basic(HTTP_REQUEST, HTTP_POST, (http_status)200, -1);
+        HELPER_ASSERT_SUCCESS(r.set_url("/api/v1/clients/", false));
+
+        SrsHttpAuthMux auth(&s);
+        HELPER_ASSERT_SUCCESS(auth.initialize(true, "admin", "admin"));
+
+        HELPER_ASSERT_SUCCESS(auth.serve_http(&w, &r));
+        EXPECT_EQ(401, w.w->status);
+    }
+
+    // auth disabled, response with 200 ok, even though empty Authorization
+    if (true) {
+        SrsHttpServeMux s;
+        HELPER_ASSERT_SUCCESS(s.initialize());
+
+        MockHttpHandler* hroot = new MockHttpHandler("Hello, world!");
+        HELPER_ASSERT_SUCCESS(s.handle("/", hroot));
+
+        MockResponseWriter w;
+        SrsHttpMessage r(NULL, NULL);
+        r.set_basic(HTTP_REQUEST, HTTP_POST, (http_status)200, -1);
+        HELPER_ASSERT_SUCCESS(r.set_url("/api/v1/clients/", false));
+
+        SrsHttpAuthMux auth(&s);
+        HELPER_ASSERT_SUCCESS(auth.initialize(false, "admin", "admin"));
+
+        HELPER_ASSERT_SUCCESS(auth.serve_http(&w, &r));
+        __MOCK_HTTP_EXPECT_STREQ(200, "Hello, world!", w);
+    }
+
+    // auth disabled, response with 200 ok, even though wrong token
+    if (true) {
+        SrsHttpServeMux s;
+        HELPER_ASSERT_SUCCESS(s.initialize());
+
+        MockHttpHandler* hroot = new MockHttpHandler("Hello, world!");
+        HELPER_ASSERT_SUCCESS(s.handle("/", hroot));
+
+        MockResponseWriter w;
+        SrsHttpMessage r(NULL, NULL);
+        r.set_basic(HTTP_REQUEST, HTTP_POST, (http_status)200, -1);
+
+        SrsHttpHeader h ;
+        h.set("Authorization", "Basic YWRtaW46YWRtaW4="); // admin:admin
+        r.set_header(&h, false);
+
+        HELPER_ASSERT_SUCCESS(r.set_url("/api/v1/clients/", false));
+
+        SrsHttpAuthMux auth(&s);
+        HELPER_ASSERT_SUCCESS(auth.initialize(false, "admin", "123456"));
+
+        HELPER_ASSERT_SUCCESS(auth.serve_http(&w, &r));
+        __MOCK_HTTP_EXPECT_STREQ(200, "Hello, world!", w);
+    }
+
+    // always response with 200 ok, for /rtc/*/
+    if (true) {
+        SrsHttpServeMux s;
+        HELPER_ASSERT_SUCCESS(s.initialize());
+
+        MockHttpHandler* hroot = new MockHttpHandler("Hello, world!");
+        HELPER_ASSERT_SUCCESS(s.handle("/", hroot));
+
+        MockResponseWriter w;
+        SrsHttpMessage r(NULL, NULL);
+        r.set_basic(HTTP_REQUEST, HTTP_POST, (http_status)200, -1);
+
+        SrsHttpHeader h ;
+        h.set("Authorization", "Basic YWRtaW46YWRtaW4="); // admin:admin
+        r.set_header(&h, false);
+
+        HELPER_ASSERT_SUCCESS(r.set_url("/rtc/play/", false));
+
+        SrsHttpAuthMux auth(&s);
+        HELPER_ASSERT_SUCCESS(auth.initialize(false, "admin", "123456"));
+
+        HELPER_ASSERT_SUCCESS(auth.serve_http(&w, &r));
+        __MOCK_HTTP_EXPECT_STREQ(200, "Hello, world!", w);
+    }
+
+    // always response with 200 ok, for /rtc/*/
+    if (true) {
+        SrsHttpServeMux s;
+        HELPER_ASSERT_SUCCESS(s.initialize());
+
+        MockHttpHandler* hroot = new MockHttpHandler("Hello, world!");
+        HELPER_ASSERT_SUCCESS(s.handle("/", hroot));
+
+        MockResponseWriter w;
+        SrsHttpMessage r(NULL, NULL);
+        r.set_basic(HTTP_REQUEST, HTTP_POST, (http_status)200, -1);
+
+        SrsHttpHeader h ;
+        h.set("Authorization", "Basic YWRtaW46YWRtaW4="); // admin:admin
+        r.set_header(&h, false);
+
+        HELPER_ASSERT_SUCCESS(r.set_url("/index.html", false));
+
+        SrsHttpAuthMux auth(&s);
+        HELPER_ASSERT_SUCCESS(auth.initialize(false, "admin", "123456"));
+
+        HELPER_ASSERT_SUCCESS(auth.serve_http(&w, &r));
         __MOCK_HTTP_EXPECT_STREQ(200, "Hello, world!", w);
     }
 }
@@ -1286,7 +1541,11 @@ VOID TEST(ProtocolHTTPTest, VodStreamHandlers)
         HELPER_ASSERT_SUCCESS(r.set_url("/index.m3u8?hls_ctx=123456", false));
 
         HELPER_ASSERT_SUCCESS(h.serve_http(&w, &r));
-        __MOCK_HTTP_EXPECT_STREQ(200, "Hello, world!", w);
+        __MOCK_HTTP_EXPECT_STREQ4(200, "/index.m3u8?hls_ctx=123456\n", w);
+
+        MockResponseWriter w2;
+        HELPER_ASSERT_SUCCESS(h.serve_http(&w2, &r));
+        __MOCK_HTTP_EXPECT_STREQ(200, "Hello, world!", w2);
     }
 
     // Should return "hls_ctx"
@@ -1304,7 +1563,11 @@ VOID TEST(ProtocolHTTPTest, VodStreamHandlers)
         HELPER_ASSERT_SUCCESS(r.set_url("/index.m3u8?hls_ctx=123456", false));
 
         HELPER_ASSERT_SUCCESS(h.serve_http(&w, &r));
-        __MOCK_HTTP_EXPECT_STREQ(200, "livestream-13.ts?hls_ctx=123456", w);
+        __MOCK_HTTP_EXPECT_STREQ4(200, "/index.m3u8?hls_ctx=123456\n", w);
+
+        MockResponseWriter w2;
+        HELPER_ASSERT_SUCCESS(h.serve_http(&w2, &r));
+        __MOCK_HTTP_EXPECT_STREQ(200, "livestream-13.ts?hls_ctx=123456", w2);
     }
 }
 
@@ -1891,7 +2154,7 @@ VOID TEST(ProtocolHTTPTest, ParsingLargeMessages)
     if (true) {
         // First message, 144 header + 315 body.
         io.append(p, 144 + 315); p += 144 + 315;
-        ISrsHttpMessage* msg = NULL; SrsAutoFree(ISrsHttpMessage, msg); HELPER_ASSERT_SUCCESS(hp.parse_message(&io, &msg));
+        ISrsHttpMessage* msg = NULL; HELPER_ASSERT_SUCCESS(hp.parse_message(&io, &msg)); SrsUniquePtr<ISrsHttpMessage> msg_uptr(msg);
         EXPECT_EQ(315, msg->content_length());
 
         string body; HELPER_ASSERT_SUCCESS(msg->body_read_all(body));
@@ -1901,7 +2164,7 @@ VOID TEST(ProtocolHTTPTest, ParsingLargeMessages)
     if (true) {
         // Second message, 164 header + 683 body.
         io.append(p, 164 + 683); p += 164 + 683;
-        ISrsHttpMessage* msg = NULL; SrsAutoFree(ISrsHttpMessage, msg); HELPER_ASSERT_SUCCESS(hp.parse_message(&io, &msg));
+        ISrsHttpMessage* msg = NULL; HELPER_ASSERT_SUCCESS(hp.parse_message(&io, &msg)); SrsUniquePtr<ISrsHttpMessage> msg_uptr(msg);
         EXPECT_EQ(683, msg->content_length());
 
         string body; HELPER_ASSERT_SUCCESS(msg->body_read_all(body));
@@ -1911,7 +2174,7 @@ VOID TEST(ProtocolHTTPTest, ParsingLargeMessages)
     if (true) {
         // Thrid message, 144 header + 315 body.
         io.append(p, 144 + 315); p += 144 + 315;
-        ISrsHttpMessage* msg = NULL; SrsAutoFree(ISrsHttpMessage, msg); HELPER_ASSERT_SUCCESS(hp.parse_message(&io, &msg));
+        ISrsHttpMessage* msg = NULL; HELPER_ASSERT_SUCCESS(hp.parse_message(&io, &msg)); SrsUniquePtr<ISrsHttpMessage> msg_uptr(msg);
         EXPECT_EQ(315, msg->content_length());
 
         string body; HELPER_ASSERT_SUCCESS(msg->body_read_all(body));
@@ -1921,7 +2184,7 @@ VOID TEST(ProtocolHTTPTest, ParsingLargeMessages)
     if (true) {
         // Forth message, 164 header + 255 body.
         io.append(p, 164 + 255); p += 164 + 255;
-        ISrsHttpMessage* msg = NULL; SrsAutoFree(ISrsHttpMessage, msg); HELPER_ASSERT_SUCCESS(hp.parse_message(&io, &msg));
+        ISrsHttpMessage* msg = NULL; HELPER_ASSERT_SUCCESS(hp.parse_message(&io, &msg)); SrsUniquePtr<ISrsHttpMessage> msg_uptr(msg);
         EXPECT_EQ(255, msg->content_length());
 
         string body; HELPER_ASSERT_SUCCESS(msg->body_read_all(body));
@@ -1934,7 +2197,7 @@ VOID TEST(ProtocolHTTPTest, ParsingLargeMessages)
         // First, we got 4k bytes, then got the left bytes, to simulate the network read.
         r.in_bytes.push_back(string((char*)p, 4096)); p += 4096;
         r.in_bytes.push_back(string((char*)p, 165 + 6317 - 4096)); p += 165 + 6317 - 4096;
-        ISrsHttpMessage* msg = NULL; SrsAutoFree(ISrsHttpMessage, msg); HELPER_ASSERT_SUCCESS(hp.parse_message(&r, &msg));
+        ISrsHttpMessage* msg = NULL; HELPER_ASSERT_SUCCESS(hp.parse_message(&r, &msg)); SrsUniquePtr<ISrsHttpMessage> msg_uptr(msg);
         EXPECT_EQ(6317, msg->content_length());
 
         string body; HELPER_ASSERT_SUCCESS(msg->body_read_all(body));
@@ -1946,7 +2209,7 @@ VOID TEST(ProtocolHTTPTest, ParsingLargeMessages)
         io.append(p, 164 + 354); p += 164 + 354;
         EXPECT_EQ((int)sizeof(data), p - data);
 
-        ISrsHttpMessage* msg = NULL; SrsAutoFree(ISrsHttpMessage, msg); HELPER_ASSERT_SUCCESS(hp.parse_message(&io, &msg));
+        ISrsHttpMessage* msg = NULL; HELPER_ASSERT_SUCCESS(hp.parse_message(&io, &msg)); SrsUniquePtr<ISrsHttpMessage> msg_uptr(msg);
         EXPECT_EQ(354, msg->content_length());
 
         string body; HELPER_ASSERT_SUCCESS(msg->body_read_all(body));

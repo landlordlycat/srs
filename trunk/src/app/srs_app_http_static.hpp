@@ -1,24 +1,32 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_APP_HTTP_STATIC_HPP
 #define SRS_APP_HTTP_STATIC_HPP
 
 #include <srs_core.hpp>
-
+#include <srs_app_security.hpp>
 #include <srs_app_http_conn.hpp>
 
 class ISrsFileReaderFactory;
 
-struct SrsM3u8CtxInfo
+// HLS virtual connection, build on query string ctx of hls stream.
+class SrsHlsVirtualConn: public ISrsExpire
 {
+public:
     srs_utime_t request_time;
     SrsRequest* req;
-    SrsM3u8CtxInfo();
-    virtual ~SrsM3u8CtxInfo();
+    std::string ctx;
+    bool interrupt;
+public:
+    SrsHlsVirtualConn();
+    virtual ~SrsHlsVirtualConn();
+// Interface ISrsExpire.
+public:
+    virtual void expire();
 };
 
 // Server HLS streaming.
@@ -26,7 +34,7 @@ class SrsHlsStream : public ISrsFastTimer
 {
 private:
     // The period of validity of the ctx
-    std::map<std::string, SrsM3u8CtxInfo*> map_ctx_info_;
+    std::map<std::string, SrsHlsVirtualConn*> map_ctx_info_;
 public:
     SrsHlsStream();
     virtual ~SrsHlsStream();
@@ -34,15 +42,18 @@ public:
     virtual srs_error_t serve_m3u8_ctx(ISrsHttpResponseWriter* w, ISrsHttpMessage* r, ISrsFileReaderFactory* factory, std::string fullpath, SrsRequest* req, bool* served);
     virtual void on_serve_ts_ctx(ISrsHttpResponseWriter* w, ISrsHttpMessage* r);
 private:
-    srs_error_t serve_new_session(ISrsHttpResponseWriter* w, ISrsHttpMessage* r, SrsRequest *req);
+    srs_error_t serve_new_session(ISrsHttpResponseWriter* w, ISrsHttpMessage* r, SrsRequest *req, std::string& ctx);
     srs_error_t serve_exists_session(ISrsHttpResponseWriter* w, ISrsHttpMessage* r, ISrsFileReaderFactory* factory, std::string fullpath);
     bool ctx_is_exist(std::string ctx);
     void alive(std::string ctx, SrsRequest* req);
     srs_error_t http_hooks_on_play(SrsRequest* req);
     void http_hooks_on_stop(SrsRequest* req);
+    bool is_interrupt(std::string id);
 // interface ISrsFastTimer
 private:
     srs_error_t on_timer(srs_utime_t interval);
+private:
+    SrsSecurity* security_;
 };
 
 // The Vod streaming, like FLV, MP4 or HLS streaming.

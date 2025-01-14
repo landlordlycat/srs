@@ -6,6 +6,7 @@ The features of SRS.
 - [x] System: Support native HTTP server([CN](https://ossrs.net/lts/zh-cn/docs/v4/doc/sample-http), [EN](https://ossrs.io/lts/en-us/docs/v4/doc/sample-http)) for http api and http live streaming. v2.0.0+
 - [x] System: Support DVR([CN](https://ossrs.net/lts/zh-cn/docs/v4/doc/dvr), [EN](https://ossrs.io/lts/en-us/docs/v4/doc/dvr)) to record live streaming to FLV file. v1.0.0+
 - [x] System: Support security strategy including allow/deny publish/play IP([CN](https://ossrs.net/lts/zh-cn/docs/v4/doc/security), [EN](https://ossrs.io/lts/en-us/docs/v4/doc/security)). v1.0.0+
+- [x] System: Security: Enable CIDR for allow/deny play/publish, [#2914](https://github.com/ossrs/srs/pull/2914). v4.0.248+
 - [x] System: Support Vhost([CN](https://ossrs.net/lts/zh-cn/docs/v4/doc/rtmp-url-vhost), [EN](https://ossrs.io/lts/en-us/docs/v4/doc/rtmp-url-vhost)) and \_\_defaultVhost\_\_. v1.0.0+
 - [x] System: Support reloading([CN](https://ossrs.net/lts/zh-cn/docs/v4/doc/reload), [EN](https://ossrs.io/lts/en-us/docs/v4/doc/reload)) to apply changes of config. v1.0.0+
 - [x] System: Support traceable and session-based log([CN](https://ossrs.net/lts/zh-cn/docs/v4/doc/log), [EN](https://ossrs.io/lts/en-us/docs/v4/doc/log)). v1.0.0+
@@ -24,9 +25,14 @@ The features of SRS.
 - [x] System: [Experimental] Support grab backtrace stack when assert fail. v5.0.80+
 - [x] System: [Experimental] Support Google Address Sanitizer, [#3216](https://github.com/ossrs/srs/issues/3216). v5.0.81+
 - [x] System: [Experimental] Windows: Support cygwin pipline and packager, [#2532](https://github.com/ossrs/srs/issues/2532). v5.0.89+
-- [x] System: [Experimental] Support H.265 over RTMP and HLS, [#465](https://github.com/ossrs/srs/issues/465). v6.0.2+
+- [x] System: [Experimental] Support H.265 over RTMP and HTTP-FLV, [#465](https://github.com/ossrs/srs/issues/465). v6.0.2+
+- [x] System: [Experimental] Support H.265 over HTTP-TS and HLS, [#465](https://github.com/ossrs/srs/issues/465). v6.0.11+
+- [x] System: [Experimental] Support H.265 over MPEG-DASH and DVR to MP4/FLV, [#465](https://github.com/ossrs/srs/issues/465). v6.0.14+
+- [x] System: [Experimental] Support H.265 over SRT and GB, [#465](https://github.com/ossrs/srs/issues/465). v6.0.25+
 - [x] API: Support HTTP API([CN](https://ossrs.net/lts/zh-cn/docs/v4/doc/http-api), [EN](https://ossrs.io/lts/en-us/docs/v4/doc/http-api)) for system management. v1.0.0+
 - [x] API: Support HTTP callback([CN](https://ossrs.net/lts/zh-cn/docs/v4/doc/http-callback), [EN](https://ossrs.io/lts/en-us/docs/v4/doc/http-callback)) for authentication and integration. v2.0.0+
+- [x] API: Support on_play/stop/publish/unpublish for WebRTC, [#2509](https://github.com/ossrs/srs/issues/2509). v4.0.163+
+- [x] API: Support statistic and on_play/stop for HLS stream, [#2578](https://github.com/ossrs/srs/issues/2578). v4.0.163+
 - [x] API: Support reuse HTTP Stream port for HTTP API, [#2881](https://github.com/ossrs/srs/issues/2881). v5.0.47+
 - [x] API: [Experimental] Support Prometheus exporter, [#2899](https://github.com/ossrs/srs/issues/2899). v5.0.67+
 - [x] Live: Support Edge Cluster for live streaming, see ([CN](https://ossrs.net/lts/zh-cn/docs/v4/doc/edge), [EN](https://ossrs.io/lts/en-us/docs/v4/doc/edge)). v1.0.0+
@@ -41,6 +47,7 @@ The features of SRS.
 - [x] Live: Support origin cluster, please read [#464](https://github.com/ossrs/srs/issues/464), [RTMP 302](https://github.com/ossrs/srs/issues/92). v3.0.0+
 - [x] Live: Support NGINX HLS Cluster, see [CN](https://ossrs.net/lts/zh-cn/docs/v4/doc/sample-hls-cluster) or [EN](https://ossrs.io/lts/en-us/docs/v4/doc/sample-hls-cluster). v5.0.28+
 - [x] Live: SRT: Support PUSH SRT by IP and optional port, see [#3198](https://github.com/ossrs/srs/issues/3198). v5.0.76+
+- [x] Live: Kickoff publisher when stream is idle, which means no players. v5.0.144+
 - [x] Live: [Experimental] Support SRT server, read [#1147](https://github.com/ossrs/srs/issues/1147). v4.0.143+
 - [x] Live: [Experimental] Support Coroutine Native SRT over ST, [#3010](https://github.com/ossrs/srs/pull/3010). v5.0.30+
 - [x] Live: [Experimental] Support MPEG-DASH, Dynamic Adaptive Streaming over HTTP, read [#299](https://github.com/ossrs/srs/issues/299). v5.0.96+
@@ -53,7 +60,8 @@ The features of SRS.
 - [x] RTC: [Experimental] Support AV1 codec for WebRTC, [#2324](https://github.com/ossrs/srs/issues/2324). v4.0.207+
 - [x] RTC: [Experimental] Support transmux RTC to RTMP, [#2093](https://github.com/ossrs/srs/issues/2093). v4.0.95
 - [x] RTC: [Experimental] Support WebRTC over TCP directly, [#2852](https://github.com/ossrs/srs/issues/2852). v5.0.60+
-- [x] RTC: [Experimental] Support WHIP(WebRTC-HTTP ingestion protocol), [#2324](https://github.com/ossrs/srs/issues/2324). v5.0.61+
+- [x] RTC: [Experimental] Support WHIP(WebRTC-HTTP ingestion protocol), [#3170](https://github.com/ossrs/srs/issues/3170). v5.0.61+
+- [x] RTC: [Experimental] Support [Larix Broadcaster](https://softvelum.com/larix/), [#3476](https://github.com/ossrs/srs/issues/3476). v5.0.148+
 - [x] Other: Support ingesting([CN](https://ossrs.net/lts/zh-cn/docs/v4/doc/ingest), [EN](https://ossrs.io/lts/en-us/docs/v4/doc/ingest)) other protocols to SRS by FFMPEG. v1.0.0+
 - [x] Other: Support forwarding([CN](https://ossrs.net/lts/zh-cn/docs/v4/doc/forward), [EN](https://ossrs.io/lts/en-us/docs/v4/doc/forward)) to other RTMP servers. v1.0.0+
 - [x] Other: Support transcoding([CN](https://ossrs.net/lts/zh-cn/docs/v4/doc/ffmpeg), [EN](https://ossrs.io/lts/en-us/docs/v4/doc/ffmpeg)) by FFMPEG. v1.0.0+
@@ -67,8 +75,11 @@ The features of SRS.
 - [x] Other: [Experimental] Support pushing MPEG-TS over UDP, please read [bug #250](https://github.com/ossrs/srs/issues/250). v2.0.111+
 - [x] Other: [Experimental] Support pushing FLV over HTTP POST, please read wiki([CN](https://ossrs.net/lts/zh-cn/docs/v4/doc/streamer#push-http-flv-to-srs), [EN](https://ossrs.io/lts/en-us/docs/v4/doc/streamer#push-http-flv-to-srs)). v2.0.163+
 - [x] Other: [Experimental] Support push stream by GB28181, [#3176](https://github.com/ossrs/srs/issues/3176). v5.0.74+
-- [ ] System: Support H.265 over SRT, TS, HLS and DASH, [#465](https://github.com/ossrs/srs/issues/465).
+- [x] Other: Support WHIP/WHEP player, [#3460](https://github.com/ossrs/srs/pull/3460). v5.0.147+
+- [ ] System: Proxy to extend origin servers, [#3138](https://github.com/ossrs/srs/issues/3138).
 - [ ] System: Support source cleanup for idle streams, [#413](https://github.com/ossrs/srs/issues/413).
+- [ ] System: Support JT808 and JT1708 for transport, [#3420](https://github.com/ossrs/srs/issues/3420).
+- [ ] System: SRS integrates with kaldi or K2 for live and WebRTC, [#3421](https://github.com/ossrs/srs/issues/3421).
 - [ ] Live: Support HLS variant, [#463](https://github.com/ossrs/srs/issues/463).
 - [ ] RTC: Support IETF-QUIC for WebRTC Cluster, [#2091](https://github.com/ossrs/srs/issues/2091).
 - [ ] RTC: Improve RTC performance to 5K by multiple threading, [#2188](https://github.com/ossrs/srs/issues/2188).

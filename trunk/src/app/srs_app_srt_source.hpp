@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_APP_SRT_SOURCE_HPP
@@ -14,13 +14,16 @@
 
 #include <srs_kernel_ts.hpp>
 #include <srs_protocol_st.hpp>
-#include <srs_app_source.hpp>
+#include <srs_app_stream_bridge.hpp>
+#include <srs_core_autofree.hpp>
+#include <srs_app_hourglass.hpp>
 
 class SrsSharedPtrMessage;
 class SrsRequest;
 class SrsLiveSource;
 class SrsSrtSource;
 class SrsAlonePithyPrint;
+class SrsSrtFrameBuilder;
 
 // The SRT packet with shared message.
 class SrsSrtPacket
@@ -45,22 +48,26 @@ private:
     int actual_buffer_size_;
 };
 
-class SrsSrtSourceManager
+class SrsSrtSourceManager : public ISrsHourGlass
 {
 private:
     srs_mutex_t lock;
-    std::map<std::string, SrsSrtSource*> pool;
+    std::map< std::string, SrsSharedPtr<SrsSrtSource> > pool;
+    SrsHourGlass* timer_;
 public:
     SrsSrtSourceManager();
     virtual ~SrsSrtSourceManager();
 public:
+    virtual srs_error_t initialize();
+// interface ISrsHourGlass
+private:
+    virtual srs_error_t setup_ticks();
+    virtual srs_error_t notify(int event, srs_utime_t interval, srs_utime_t tick);
+public:
     //  create source when fetch from cache failed.
     // @param r the client request.
     // @param pps the matched source, if success never be NULL.
-    virtual srs_error_t fetch_or_create(SrsRequest* r, SrsSrtSource** pps);
-public:
-    // Get the exists source, NULL when not exists.
-    virtual SrsSrtSource* fetch(SrsRequest* r);
+    virtual srs_error_t fetch_or_create(SrsRequest* r, SrsSharedPtr<SrsSrtSource>& pps);
 };
 
 // Global singleton instance.
@@ -72,7 +79,9 @@ public:
     SrsSrtConsumer(SrsSrtSource* source);
     virtual ~SrsSrtConsumer();
 private:
-    SrsSrtSource* source;
+    // Because source references to this object, so we should directly use the source ptr.
+    SrsSrtSource* source_;
+private:
     std::vector<SrsSrtPacket*> queue;
     // when source id changed, notice all consumers
     bool should_update_source_id;
@@ -91,53 +100,53 @@ public:
     virtual void wait(int nb_msgs, srs_utime_t timeout);
 };
 
-class ISrsSrtSourceBridge
+// Collect and build SRT TS packet to AV frames.
+class SrsSrtFrameBuilder : public ISrsTsHandler
 {
 public:
-    ISrsSrtSourceBridge();
-    virtual ~ISrsSrtSourceBridge();
+    SrsSrtFrameBuilder(ISrsStreamBridge* bridge);
+    virtual ~SrsSrtFrameBuilder();
 public:
-    virtual srs_error_t on_publish() = 0;
-    virtual srs_error_t on_packet(SrsSrtPacket *pkt) = 0;
-    virtual void on_unpublish() = 0;
-};
-
-class SrsRtmpFromSrtBridge : public ISrsSrtSourceBridge, public ISrsTsHandler
-{
-public:
-    SrsRtmpFromSrtBridge(SrsLiveSource* source);
-    virtual ~SrsRtmpFromSrtBridge();
+    srs_error_t initialize(SrsRequest* r);
 public:
     virtual srs_error_t on_publish();
-    virtual srs_error_t on_packet(SrsSrtPacket *pkt);
+    virtual srs_error_t on_packet(SrsSrtPacket* pkt);
     virtual void on_unpublish();
-public:
-    srs_error_t initialize(SrsRequest* req);
 // Interface ISrsTsHandler
 public:
     virtual srs_error_t on_ts_message(SrsTsMessage* msg);
 private:
-    srs_error_t on_ts_video(SrsTsMessage* msg, SrsBuffer* avs);
+    srs_error_t on_ts_video_avc(SrsTsMessage* msg, SrsBuffer* avs);
     srs_error_t on_ts_audio(SrsTsMessage* msg, SrsBuffer* avs);
     srs_error_t check_sps_pps_change(SrsTsMessage* msg);
-    srs_error_t on_h264_frame(SrsTsMessage* msg, std::vector<std::pair<char*, int> >& ipb_frames);
+    srs_error_t on_h264_frame(SrsTsMessage* msg, std::vector< std::pair<char*, int> >& ipb_frames);
     srs_error_t check_audio_sh_change(SrsTsMessage* msg, uint32_t pts);
     srs_error_t on_aac_frame(SrsTsMessage* msg, uint32_t pts, char* frame, int frame_size);
+#ifdef SRS_H265
+    srs_error_t on_ts_video_hevc(SrsTsMessage *msg, SrsBuffer *avs);
+    srs_error_t check_vps_sps_pps_change(SrsTsMessage *msg);
+    srs_error_t on_hevc_frame(SrsTsMessage *msg, std::vector< std::pair<char *, int> > &ipb_frames);
+#endif
+private:
+    ISrsStreamBridge* bridge_;
 private:
     SrsTsContext* ts_ctx_;
-
     // Record sps/pps had changed, if change, need to generate new video sh frame.
     bool sps_pps_change_;
     std::string sps_;
     std::string pps_;
-
+#ifdef SRS_H265
+    bool vps_sps_pps_change_;
+    std::string hevc_vps_;
+    std::string hevc_sps_;
+    std::vector<std::string> hevc_pps_;
+#endif
     // Record audio sepcific config had changed, if change, need to generate new audio sh frame.
     bool audio_sh_change_;
     std::string audio_sh_;
-
+private:
     SrsRequest* req_;
-    SrsLiveSource* live_source_;
-
+private:
     // SRT to rtmp, video stream id.
     int video_streamid_;
     // SRT to rtmp, audio stream id.
@@ -154,6 +163,9 @@ public:
 public:
     virtual srs_error_t initialize(SrsRequest* r);
 public:
+    // Whether stream is dead, which is no publisher or player.
+    virtual bool stream_is_dead();
+public:
     // The source id changed.
     virtual srs_error_t on_source_id_changed(SrsContextId id);
     // Get current source id.
@@ -162,7 +174,7 @@ public:
     // Update the authentication information in request.
     virtual void update_auth(SrsRequest* r);
 public:
-    void set_bridge(ISrsSrtSourceBridge *bridger);
+    void set_bridge(ISrsStreamBridge* bridge);
 public:
     // Create consumer
     // @param consumer, output the create consumer.
@@ -187,7 +199,11 @@ private:
     // To delivery packets to clients.
     std::vector<SrsSrtConsumer*> consumers;
     bool can_publish_;
-    ISrsSrtSourceBridge* bridge_;
+    // The last die time, while die means neither publishers nor players.
+    srs_utime_t stream_die_at_;
+private:
+    SrsSrtFrameBuilder* frame_builder_;
+    ISrsStreamBridge* bridge_;
 };
 
 #endif

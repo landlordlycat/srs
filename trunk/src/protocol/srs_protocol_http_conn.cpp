@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #include <srs_protocol_http_conn.hpp>
@@ -332,6 +332,20 @@ void SrsHttpMessage::set_header(SrsHttpHeader* header, bool keep_alive)
     }
 }
 
+// For callback function name, only allow [a-zA-Z0-9_-.] characters.
+bool srs_is_valid_jsonp_callback(std::string callback)
+{
+    for (int i = 0; i < (int)callback.length(); i++) {
+        char ch = callback.at(i);
+        bool is_alpha_beta = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
+        bool is_number = (ch >= '0' && ch <= '9');
+        if (!is_alpha_beta && !is_number && ch != '.' && ch != '_' && ch != '-') {
+            return false;
+        }
+    }
+    return true;
+}
+
 srs_error_t SrsHttpMessage::set_url(string url, bool allow_jsonp)
 {
     srs_error_t err = srs_success;
@@ -373,11 +387,15 @@ srs_error_t SrsHttpMessage::set_url(string url, bool allow_jsonp)
     
     // parse jsonp request message.
     if (allow_jsonp) {
-        if (!query_get("callback").empty()) {
-            jsonp = true;
-        }
+        string callback= query_get("callback");
+        jsonp = !callback.empty();
+
         if (jsonp) {
             jsonp_method = query_get("method");
+        }
+
+        if (!srs_is_valid_jsonp_callback(callback)) {
+            return srs_error_new(ERROR_HTTP_JSONP, "invalid callback=%s", callback.c_str());
         }
     }
     
@@ -1162,7 +1180,9 @@ srs_error_t SrsHttpResponseReader::read_chunked(void* data, size_t nb_data, ssiz
     if (nb_chunk <= 0) {
         // for the last chunk, eof.
         is_eof = true;
-        *nb_read = 0;
+        if (nb_read) {
+            *nb_read = 0;
+        }
     } else {
         // for not the last chunk, there must always exists bytes.
         // left bytes in chunk, read some.

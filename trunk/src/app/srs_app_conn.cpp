@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #include <srs_app_conn.hpp>
@@ -54,8 +54,8 @@ SrsResourceManager::~SrsResourceManager()
         trd->stop();
 
         srs_freep(trd);
-        srs_cond_destroy(cond);
     }
+    srs_cond_destroy(cond);
 
     clear();
 
@@ -413,28 +413,6 @@ void SrsResourceManager::dispose(ISrsResource* c)
     }
 }
 
-SrsLazySweepGc::SrsLazySweepGc()
-{
-}
-
-SrsLazySweepGc::~SrsLazySweepGc()
-{
-}
-
-srs_error_t SrsLazySweepGc::start()
-{
-    srs_error_t err = srs_success;
-    return err;
-}
-
-void SrsLazySweepGc::remove(SrsLazyObject* c)
-{
-    // TODO: FIXME: MUST lazy sweep.
-    srs_freep(c);
-}
-
-ISrsLazyGc* _srs_gc = NULL;
-
 ISrsExpire::ISrsExpire()
 {
 }
@@ -772,7 +750,7 @@ srs_error_t SrsSslConnection::handshake(string key_file, string crt_file)
     int r0, r1, size;
 
     // Setup the key and cert file for server.
-    if ((r0 = SSL_use_certificate_file(ssl, crt_file.c_str(), SSL_FILETYPE_PEM)) != 1) {
+    if ((r0 = SSL_use_certificate_chain_file(ssl, crt_file.c_str())) != 1) {
         return srs_error_new(ERROR_HTTPS_KEY_CRT, "use cert %s", crt_file.c_str());
     }
 
@@ -798,7 +776,7 @@ srs_error_t SrsSslConnection::handshake(string key_file, string crt_file)
             return srs_error_new(ERROR_HTTPS_HANDSHAKE, "BIO_write r0=%d, data=%p, size=%d", r0, buf, nn);
         }
 
-        r0 = SSL_do_handshake(ssl); r1 = SSL_get_error(ssl, r0);
+        r0 = SSL_do_handshake(ssl); r1 = SSL_get_error(ssl, r0); ERR_clear_error();
         if (r0 != -1 || r1 != SSL_ERROR_WANT_READ) {
             return srs_error_new(ERROR_HTTPS_HANDSHAKE, "handshake r0=%d, r1=%d", r0, r1);
         }
@@ -840,7 +818,7 @@ srs_error_t SrsSslConnection::handshake(string key_file, string crt_file)
             return srs_error_new(ERROR_HTTPS_HANDSHAKE, "BIO_write r0=%d, data=%p, size=%d", r0, buf, nn);
         }
 
-        r0 = SSL_do_handshake(ssl); r1 = SSL_get_error(ssl, r0);
+        r0 = SSL_do_handshake(ssl); r1 = SSL_get_error(ssl, r0); ERR_clear_error();
         if (r0 == 1 && r1 == SSL_ERROR_NONE) {
             break;
         }
@@ -908,7 +886,7 @@ srs_error_t SrsSslConnection::read(void* plaintext, size_t nn_plaintext, ssize_t
     srs_error_t err = srs_success;
 
     while (true) {
-        int r0 = SSL_read(ssl, plaintext, nn_plaintext); int r1 = SSL_get_error(ssl, r0);
+        int r0 = SSL_read(ssl, plaintext, nn_plaintext); int r1 = SSL_get_error(ssl, r0); ERR_clear_error();
         int r2 = BIO_ctrl_pending(bio_in); int r3 = SSL_is_init_finished(ssl);
 
         // OK, got data.
@@ -924,19 +902,18 @@ srs_error_t SrsSslConnection::read(void* plaintext, size_t nn_plaintext, ssize_t
         if (r0 == -1 && r1 == SSL_ERROR_WANT_READ) {
             // TODO: Can we avoid copy?
             int nn_cipher = nn_plaintext;
-            char* cipher = new char[nn_cipher];
-            SrsAutoFreeA(char, cipher);
+            SrsUniquePtr<char[]> cipher(new char[nn_cipher]);
 
             // Read the cipher from SSL.
             ssize_t nn = 0;
-            if ((err = transport->read(cipher, nn_cipher, &nn)) != srs_success) {
+            if ((err = transport->read(cipher.get(), nn_cipher, &nn)) != srs_success) {
                 return srs_error_wrap(err, "https: read");
             }
 
-            int r0 = BIO_write(bio_in, cipher, nn);
+            int r0 = BIO_write(bio_in, cipher.get(), nn);
             if (r0 <= 0) {
                 // TODO: 0 or -1 maybe block, use BIO_should_retry to check.
-                return srs_error_new(ERROR_HTTPS_READ, "BIO_write r0=%d, cipher=%p, size=%d", r0, cipher, nn);
+                return srs_error_new(ERROR_HTTPS_READ, "BIO_write r0=%d, cipher=%p, size=%d", r0, cipher.get(), nn);
             }
             continue;
         }
@@ -966,7 +943,7 @@ srs_error_t SrsSslConnection::write(void* plaintext, size_t nn_plaintext, ssize_
     for (char* p = (char*)plaintext; p < (char*)plaintext + nn_plaintext;) {
         int left = (int)nn_plaintext - (p - (char*)plaintext);
         int r0 = SSL_write(ssl, (const void*)p, left);
-        int r1 = SSL_get_error(ssl, r0);
+        int r1 = SSL_get_error(ssl, r0); ERR_clear_error();
         if (r0 <= 0) {
             return srs_error_new(ERROR_HTTPS_WRITE, "https: write data=%p, size=%d, r0=%d, r1=%d", p, left, r0, r1);
         }

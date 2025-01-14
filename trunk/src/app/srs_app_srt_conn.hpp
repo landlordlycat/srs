@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_APP_SRT_CONN_HPP
@@ -16,6 +16,7 @@
 #include <srs_app_st.hpp>
 #include <srs_app_conn.hpp>
 #include <srs_app_srt_utility.hpp>
+#include <srs_app_security.hpp>
 
 class SrsBuffer;
 class SrsLiveSource;
@@ -122,7 +123,8 @@ private:
     SrsCoroutine* trd_;
 
     SrsRequest* req_;
-    SrsSrtSource* srt_source_;
+    SrsSharedPtr<SrsSrtSource> srt_source_;
+    SrsSecurity* security_;
 };
 
 #endif

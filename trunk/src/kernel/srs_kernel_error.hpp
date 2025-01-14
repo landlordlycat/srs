@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_KERNEL_ERROR_HPP
@@ -102,6 +102,13 @@
     XX(ERROR_APM_AUTH                      , 1089, "ApmAuth", "APM team or token is invalid") \
     XX(ERROR_EXPORTER_DISABLED             , 1090, "ExporterDisable", "Prometheus exporter is disabled") \
     XX(ERROR_ST_SET_SELECT                 , 1091, "StSetSelect", "ST set select failed") \
+    XX(ERROR_BACKTRACE_PARSE_NOT_SUPPORT   , 1092, "BacktraceParseNotSupport", "Backtrace parse not supported") \
+    XX(ERROR_BACKTRACE_PARSE_OFFSET        , 1093, "BacktraceParseOffset", "Parse backtrace offset failed") \
+    XX(ERROR_BACKTRACE_ADDR2LINE           , 1094, "BacktraceAddr2Line", "Backtrace addr2line failed") \
+    XX(ERROR_SYSTEM_FILE_NOT_OPEN          , 1095, "FileNotOpen", "File is not opened") \
+    XX(ERROR_SYSTEM_FILE_SETVBUF           , 1096, "FileSetVBuf", "Failed to set file vbuf") \
+    XX(ERROR_NO_SOURCE                     , 1097, "NoSource", "No source found") \
+    XX(ERROR_STREAM_DISPOSING              , 1098, "StreamDisposing", "Stream is disposing")
 
 /**************************************************/
 /* RTMP protocol error. */
@@ -162,6 +169,7 @@
     XX(ERROR_RTMP_MESSAGE_CREATE           , 2053, "MessageCreate", "Failed to create shared pointer message") \
     XX(ERROR_RTMP_PROXY_EXCEED             , 2054, "RtmpProxy", "Failed to decode message of RTMP proxy") \
     XX(ERROR_RTMP_CREATE_STREAM_DEPTH      , 2055, "RtmpIdentify", "Failed to identify RTMP client") \
+    XX(ERROR_KICKOFF_FOR_IDLE              , 2056, "KickoffForIdle", "Kickoff for publisher is idle") \
     XX(ERROR_CONTROL_REDIRECT              , 2997, "RtmpRedirect", "RTMP 302 redirection") \
     XX(ERROR_CONTROL_RTMP_CLOSE            , 2998, "RtmpClose", "RTMP connection is closed") \
     XX(ERROR_CONTROL_REPUBLISH             , 2999, "RtmpRepublish", "RTMP stream is republished")
@@ -267,7 +275,11 @@
     XX(ERROR_INOTIFY_WATCH                 , 3095, "InotfyWatch", "Failed to watch inotify for config listener") \
     XX(ERROR_HTTP_URL_UNESCAPE             , 3096, "HttpUrlUnescape", "Failed to unescape URL for HTTP") \
     XX(ERROR_HTTP_WITH_BODY                , 3097, "HttpWithBody", "Failed for HTTP body") \
-    XX(ERROR_HEVC_DISABLED                 , 3098, "HevcDisabled", "HEVC is disabled")
+    XX(ERROR_HEVC_DISABLED                 , 3098, "HevcDisabled", "HEVC is disabled") \
+    XX(ERROR_HEVC_DECODE_ERROR             , 3099, "HevcDecode", "HEVC decode av stream failed")  \
+    XX(ERROR_MP4_HVCC_CHANGE               , 3100, "Mp4HvcCChange", "MP4 does not support video HvcC change") \
+    XX(ERROR_HEVC_API_NO_PREFIXED          , 3101, "HevcAnnexbPrefix", "No annexb prefix for HEVC decoder") \
+    XX(ERROR_AVC_NALU_EMPTY                , 3102, "AvcNaluEmpty", "AVC NALU is empty")
 
 /**************************************************/
 /* HTTP/StreamConverter protocol error. */
@@ -318,6 +330,14 @@
     XX(ERROR_GB_SSRC_GENERATE              , 4051, "GbSsrcGenerate", "Failed to generate SSRC for GB28181") \
     XX(ERROR_GB_CONFIG                     , 4052, "GbConfig", "Invalid configuration for GB28181") \
     XX(ERROR_GB_TIMEOUT                    , 4053, "GbTimeout", "SIP or media connection timeout for GB28181") \
+    XX(ERROR_STREAM_CASTER_HEVC_VPS        , 4054, "CasterTsHevcVps", "Invalid ts HEVC VPS for stream caster") \
+    XX(ERROR_STREAM_CASTER_HEVC_SPS        , 4055, "CasterTsHevcSps", "Invalid ts HEVC SPS for stream caster") \
+    XX(ERROR_STREAM_CASTER_HEVC_PPS        , 4056, "CasterTsHevcPps", "Invalid ts HEVC PPS for stream caster") \
+    XX(ERROR_STREAM_CASTER_HEVC_FORMAT     , 4057, "CasterTsHevcFormat", "Invalid ts HEVC Format for stream caster") \
+    XX(ERROR_HTTP_JSONP                    , 4058, "HttpJsonp", "Invalid callback for JSONP")   \
+    XX(ERROR_HEVC_NALU_UEV                 , 4059, "HevcNaluUev", "Failed to read UEV for HEVC NALU") \
+    XX(ERROR_HEVC_NALU_SEV                 , 4060, "HevcNaluSev", "Failed to read SEV for HEVC NALU")
+
 
 /**************************************************/
 /* RTC protocol error. */
@@ -346,7 +366,7 @@
     XX(ERROR_RTC_DISABLED                  , 5021, "RtcDisabled", "RTC is disabled by configuration") \
     XX(ERROR_RTC_NO_SESSION                , 5022, "RtcNoSession", "Invalid packet for no RTC session matched") \
     XX(ERROR_RTC_INVALID_PARAMS            , 5023, "RtcInvalidParams", "Invalid API parameters for RTC") \
-    XX(ERROR_RTC_DUMMY_BRIDGER             , 5024, "RtcDummyBridger", "RTC dummy bridger error") \
+    XX(ERROR_RTC_DUMMY_BRIDGE              , 5024, "RtcDummyBridge", "RTC dummy bridge error") \
     XX(ERROR_RTC_STREM_STARTED             , 5025, "RtcStreamStarted", "RTC stream already started") \
     XX(ERROR_RTC_TRACK_CODEC               , 5026, "RtcTrackCodec", "RTC track codec error") \
     XX(ERROR_RTC_NO_PLAYER                 , 5027, "RtcNoPlayer", "RTC player not found") \
@@ -357,7 +377,9 @@
     XX(ERROR_RTC_TCP_SIZE                  , 5032, "RtcTcpSize", "RTC TCP packet size is invalid") \
     XX(ERROR_RTC_TCP_PACKET                , 5033, "RtcTcpStun", "RTC TCP first packet must be STUN") \
     XX(ERROR_RTC_TCP_STUN                  , 5034, "RtcTcpSession", "RTC TCP packet is invalid for session not found") \
-    XX(ERROR_RTC_TCP_UNIQUE                , 5035, "RtcUnique", "RTC only support one UDP or TCP network")
+    XX(ERROR_RTC_TCP_UNIQUE                , 5035, "RtcUnique", "RTC only support one UDP or TCP network") \
+    XX(ERROR_RTC_INVALID_SESSION           , 5036, "RtcInvalidSession", "Invalid request for no RTC session matched") \
+    XX(ERROR_RTC_INVALID_ICE               , 5037, "RtcInvalidIce", "Invalid ICE ufrag or pwd")
 
 /**************************************************/
 /* SRT protocol error. */
@@ -371,7 +393,8 @@
     XX(ERROR_SRT_CONN                      , 6006, "SrtConnection", "SRT connectin level error") \
     XX(ERROR_SRT_SOURCE_BUSY               , 6007, "SrtStreamBusy", "SRT stream already exists or busy") \
     XX(ERROR_RTMP_TO_SRT                   , 6008, "SrtFromRtmp", "Covert RTMP to SRT failed") \
-    XX(ERROR_SRT_STATS                     , 6009, "SrtStats", "SRT get statistic data failed")
+    XX(ERROR_SRT_STATS                     , 6009, "SrtStats", "SRT get statistic data failed") \
+    XX(ERROR_SRT_TO_RTMP_EMPTY_SPS_PPS     , 6010, "SrtToRtmpEmptySpsPps", "SRT to rtmp have empty sps or pps")
 
 /**************************************************/
 /* For user-define error. */
@@ -446,7 +469,7 @@ public:
 };
 
 // Error helpers, should use these functions to new or wrap an error.
-#define srs_success 0 // SrsCplxError::success()
+#define srs_success NULL // SrsCplxError::success()
 #define srs_error_new(ret, fmt, ...) SrsCplxError::create(__FUNCTION__, __FILE__, __LINE__, ret, fmt, ##__VA_ARGS__)
 #define srs_error_wrap(err, fmt, ...) SrsCplxError::wrap(__FUNCTION__, __FILE__, __LINE__, err, fmt, ##__VA_ARGS__)
 #define srs_error_copy(err) SrsCplxError::copy(err)

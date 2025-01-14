@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #include <srs_app_statistic.hpp>
@@ -143,8 +143,20 @@ srs_error_t SrsStatisticStream::dumps(SrsJsonObject* obj)
         obj->set("video", video);
         
         video->set("codec", SrsJsonAny::str(srs_video_codec_id2str(vcodec).c_str()));
-        video->set("profile", SrsJsonAny::str(srs_avc_profile2str(avc_profile).c_str()));
-        video->set("level", SrsJsonAny::str(srs_avc_level2str(avc_level).c_str()));
+
+        if (vcodec == SrsVideoCodecIdAVC) {
+            video->set("profile", SrsJsonAny::str(srs_avc_profile2str(avc_profile).c_str()));
+            video->set("level", SrsJsonAny::str(srs_avc_level2str(avc_level).c_str()));
+#ifdef SRS_H265
+        } else if (vcodec == SrsVideoCodecIdHEVC) {
+            video->set("profile", SrsJsonAny::str(srs_hevc_profile2str(hevc_profile).c_str()));
+            video->set("level", SrsJsonAny::str(srs_hevc_level2str(hevc_level).c_str()));
+#endif
+        } else {
+            video->set("profile", SrsJsonAny::str("Other"));
+            video->set("level", SrsJsonAny::str("Other"));
+        }
+
         video->set("width", SrsJsonAny::integer(width));
         video->set("height", SrsJsonAny::integer(height));
     }
@@ -166,7 +178,7 @@ srs_error_t SrsStatisticStream::dumps(SrsJsonObject* obj)
 
 void SrsStatisticStream::publish(std::string id)
 {
-    // To prevent duplicated publish event by bridger.
+    // To prevent duplicated publish event by bridge.
     if (active) {
         return;
     }
@@ -335,7 +347,7 @@ SrsStatisticClient* SrsStatistic::find_client(string client_id)
     return NULL;
 }
 
-srs_error_t SrsStatistic::on_video_info(SrsRequest* req, SrsVideoCodecId vcodec, SrsAvcProfile avc_profile, SrsAvcLevel avc_level, int width, int height)
+srs_error_t SrsStatistic::on_video_info(SrsRequest* req, SrsVideoCodecId vcodec, int profile, int level, int width, int height)
 {
     srs_error_t err = srs_success;
     
@@ -344,9 +356,20 @@ srs_error_t SrsStatistic::on_video_info(SrsRequest* req, SrsVideoCodecId vcodec,
     
     stream->has_video = true;
     stream->vcodec = vcodec;
-    stream->avc_profile = avc_profile;
-    stream->avc_level = avc_level;
-    
+
+    if (vcodec == SrsVideoCodecIdAVC) {
+        stream->avc_profile = (SrsAvcProfile)profile;
+        stream->avc_level = (SrsAvcLevel)level;
+#ifdef SRS_H265
+    } else if (vcodec == SrsVideoCodecIdHEVC) {
+        stream->hevc_profile = (SrsHevcProfile)profile;
+        stream->hevc_level = (SrsHevcLevel)level;
+#endif
+    } else {
+        stream->avc_profile = (SrsAvcProfile)profile;
+        stream->avc_level = (SrsAvcLevel)level;
+    }
+
     stream->width = width;
     stream->height = height;
     
@@ -467,14 +490,14 @@ void SrsStatistic::cleanup_stream(SrsStatisticStream* stream)
 
     // Do cleanup streams.
     if (true) {
-        std::map<std::string, SrsStatisticStream *>::iterator it;
+        std::map<std::string, SrsStatisticStream*>::iterator it;
         if ((it = streams.find(stream->id)) != streams.end()) {
             streams.erase(it);
         }
     }
 
     if (true) {
-        std::map<std::string, SrsStatisticStream *>::iterator it;
+        std::map<std::string, SrsStatisticStream*>::iterator it;
         if ((it = rstreams.find(stream->url)) != rstreams.end()) {
             rstreams.erase(it);
         }
@@ -541,6 +564,24 @@ std::string SrsStatistic::server_id()
         server_id_ = _srs_config->get_server_id();
     }
     return server_id_;
+}
+
+std::string SrsStatistic::service_id()
+{
+    if (service_id_.empty()) {
+        service_id_ = srs_random_str(8);
+    }
+
+    return service_id_;
+}
+
+std::string SrsStatistic::service_pid()
+{
+    if (service_pid_.empty()) {
+        service_pid_ = srs_int2str(getpid());
+    }
+
+    return service_pid_;
 }
 
 srs_error_t SrsStatistic::dumps_vhosts(SrsJsonArray* arr)
@@ -635,6 +676,7 @@ void SrsStatistic::dumps_hints_kv(std::stringstream & ss)
 #endif
 }
 
+#ifdef SRS_APM
 void SrsStatistic::dumps_cls_summaries(SrsClsSugar* sugar)
 {
     if (!vhosts.empty()) {
@@ -693,6 +735,7 @@ void SrsStatistic::dumps_cls_streams(SrsClsSugars* sugars)
         }
     }
 }
+#endif
 
 SrsStatisticVhost* SrsStatistic::create_vhost(SrsRequest* req)
 {

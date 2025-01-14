@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_KERNEL_RTC_RTP_HPP
@@ -50,9 +50,9 @@ uint8_t srs_rtp_fast_parse_pt(char* buf, int size);
 srs_error_t srs_rtp_fast_parse_twcc(char* buf, int size, uint8_t twcc_id, uint16_t& twcc_sn);
 
 // The "distance" between two uint16 number, for example:
-//      distance(prev_value=3, value=5) === (int16_t)(uint16_t)((uint16_t)3-(uint16_t)5) === -2
-//      distance(prev_value=3, value=65534) === (int16_t)(uint16_t)((uint16_t)3-(uint16_t)65534) === 5
-//      distance(prev_value=65532, value=65534) === (int16_t)(uint16_t)((uint16_t)65532-(uint16_t)65534) === -2
+//      distance(prev_value=3, value=5) is (int16_t)(uint16_t)((uint16_t)3-(uint16_t)5) is -2
+//      distance(prev_value=3, value=65534) is (int16_t)(uint16_t)((uint16_t)3-(uint16_t)65534) is 5
+//      distance(prev_value=65532, value=65534) is (int16_t)(uint16_t)((uint16_t)65532-(uint16_t)65534) is -2
 // For RTP sequence, it's only uint16 and may flip back, so 3 maybe 3+0xffff.
 // @remark Note that srs_rtp_seq_distance(0, 32768)>0 is TRUE by https://mp.weixin.qq.com/s/JZTInmlB9FUWXBQw_7NYqg
 //      but for WebRTC jitter buffer it's FALSE and we follow it.
@@ -335,6 +335,7 @@ public:
     virtual srs_error_t decode(SrsBuffer* buf);
 public:
     bool is_keyframe();
+    // Get and set the packet sync time in milliseconds.
     void set_avsync_time(int64_t avsync_time) { avsync_time_ = avsync_time; }
     int64_t get_avsync_time() const { return avsync_time_; }
 };
@@ -347,6 +348,9 @@ public:
     // @remark We only refer to the memory, user must free its bytes.
     char* payload;
     int nn_payload;
+public:
+    // Use the whole RAW RTP payload as a sample.
+    SrsSample* sample_;
 public:
     SrsRtpRawPayload();
     virtual ~SrsRtpRawPayload();

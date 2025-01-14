@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_APP_PITHY_PRINT_HPP
@@ -94,8 +94,7 @@ public:
 // if there is 1client, it will print every 3s.
 // if there is 10clients, random select one to print every 3s.
 // Usage:
-//        SrsPithyPrint* pprint = SrsPithyPrint::create_rtmp_play();
-//        SrsAutoFree(SrsPithyPrint, pprint);
+//        SrsUniquePtr<SrsPithyPrint> pprint(SrsPithyPrint::create_rtmp_play());
 //        while (true) {
 //            pprint->elapse();
 //            if (pprint->can_print()) {

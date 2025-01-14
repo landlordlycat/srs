@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_APP_CONN_HPP
@@ -14,11 +14,13 @@
 #include <map>
 
 #include <openssl/ssl.h>
+#include <openssl/err.h>
 
 #include <srs_app_st.hpp>
 #include <srs_protocol_kbps.hpp>
 #include <srs_app_reload.hpp>
 #include <srs_protocol_conn.hpp>
+#include <srs_core_autofree.hpp>
 
 class SrsWallClock;
 class SrsBuffer;
@@ -124,89 +126,68 @@ private:
     void dispose(ISrsResource* c);
 };
 
-// A simple lazy-sweep GC, just wait for a long time to delete the disposable resources.
-class SrsLazySweepGc : public ISrsLazyGc
-{
-public:
-    SrsLazySweepGc();
-    virtual ~SrsLazySweepGc();
-public:
-    virtual srs_error_t start();
-    virtual void remove(SrsLazyObject* c);
-};
-
-extern ISrsLazyGc* _srs_gc;
-
-// A wrapper template for lazy-sweep resource.
-// See https://github.com/ossrs/srs/issues/3176#lazy-sweep
+// This class implements the ISrsResource interface using a smart pointer, allowing the Manager to delete this
+// smart pointer resource, such as by implementing delayed release.
+//
+// It embeds an SrsSharedPtr to provide the same interface, but it is not an inheritance relationship. Its usage
+// is identical to SrsSharedPtr, but they cannot replace each other. They are not related and cannot be converted
+// to one another.
+//
+// Note that we don't need to implement the move constructor and move assignment operator, because we directly
+// use SrsSharedPtr as instance member, so we can only copy it.
+//
+// Usage:
+//      SrsSharedResource<MyClass>* ptr = new SrsSharedResource<MyClass>(new MyClass());
+//      (*ptr)->do_something();
+//
+//      ISrsResourceManager* manager = ...;
+//      manager->remove(ptr);
 template<typename T>
-class SrsLazyObjectWrapper : public ISrsResource
+class SrsSharedResource : public ISrsResource
 {
 private:
-    T* resource_;
-    bool is_root_;
+    SrsSharedPtr<T> ptr_;
 public:
-    SrsLazyObjectWrapper(T* resource = NULL, ISrsResource* wrapper = NULL) {
-        resource_ = resource ? resource : new T();
-        resource_->gc_use();
-
-        is_root_ = !resource;
-        if (!resource) {
-            resource_->gc_set_creator_wrapper(wrapper ? wrapper : this);
-        }
+    SrsSharedResource(T* ptr = NULL) : ptr_(ptr) {
     }
-    virtual ~SrsLazyObjectWrapper() {
-        resource_->gc_dispose();
-
-        if (is_root_) {
-            resource_->gc_set_creator_wrapper(NULL);
-        }
-
-        if (resource_->gc_ref() == 0) {
-            _srs_gc->remove(resource_);
-        }
+    SrsSharedResource(const SrsSharedResource<T>& cp) : ptr_(cp.ptr_) {
+    }
+    virtual ~SrsSharedResource() {
     }
 public:
-    SrsLazyObjectWrapper<T>* copy() {
-        return new SrsLazyObjectWrapper<T>(resource_);
+    // Get the object.
+    T* get() {
+        return ptr_.get();
     }
-    T* resource() {
-        return resource_;
+    // Overload the -> operator.
+    T* operator->() {
+        return ptr_.operator->();
+    }
+    // The assign operator.
+    SrsSharedResource<T>& operator=(const SrsSharedResource<T>& cp) {
+        if (this != &cp) {
+            ptr_ = cp.ptr_;
+        }
+        return *this;
+    }
+private:
+    // Overload the * operator.
+    T& operator*() {
+        return ptr_.operator*();
+    }
+    // Overload the bool operator.
+    operator bool() const {
+        return ptr_.operator bool();
     }
 // Interface ISrsResource
 public:
     virtual const SrsContextId& get_id() {
-        return resource_->get_id();
+        return ptr_->get_id();
     }
     virtual std::string desc() {
-        return resource_->desc();
+        return ptr_->desc();
     }
 };
-
-// Use macro to generate a wrapper class, because typedef will cause IDE incorrect tips.
-// See https://github.com/ossrs/srs/issues/3176#lazy-sweep
-#define SRS_LAZY_WRAPPER_GENERATOR(Resource, IWrapper, IResource) \
-    private: \
-        SrsLazyObjectWrapper<Resource> impl_; \
-    public: \
-        Resource##Wrapper(Resource* resource = NULL) : impl_(resource, this) { \
-        } \
-        virtual ~Resource##Wrapper() { \
-        } \
-    public: \
-        IWrapper* copy() { \
-            return new Resource##Wrapper(impl_.resource()); \
-        } \
-        IResource* resource() { \
-            return impl_.resource(); \
-        } \
-    public: \
-        virtual const SrsContextId& get_id() { \
-            return impl_.get_id(); \
-        } \
-        virtual std::string desc() { \
-            return impl_.desc(); \
-        } \
 
 // If a connection is able be expired, user can use HTTP-API to kick-off it.
 class ISrsExpire

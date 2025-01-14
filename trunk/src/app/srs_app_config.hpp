@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_APP_CONFIG_HPP
@@ -32,11 +32,11 @@ class SrsConfDirective;
 
 /**
  * whether the two vector actual equals, for instance,
- *      srs_vector_actual_equals([0, 1, 2], [0, 1, 2])      ==== true
- *      srs_vector_actual_equals([0, 1, 2], [2, 1, 0])      ==== true
- *      srs_vector_actual_equals([0, 1, 2], [0, 2, 1])      ==== true
- *      srs_vector_actual_equals([0, 1, 2], [0, 1, 2, 3])   ==== false
- *      srs_vector_actual_equals([1, 2, 3], [0, 1, 2])      ==== false
+ *      srs_vector_actual_equals([0, 1, 2], [0, 1, 2])      is true
+ *      srs_vector_actual_equals([0, 1, 2], [2, 1, 0])      is true
+ *      srs_vector_actual_equals([0, 1, 2], [0, 2, 1])      is true
+ *      srs_vector_actual_equals([0, 1, 2], [0, 1, 2, 3])   is false
+ *      srs_vector_actual_equals([1, 2, 3], [0, 1, 2])      is false
  */
 template<typename T>
 bool srs_vector_actual_equals(const std::vector<T>& a, const std::vector<T>& b)
@@ -256,6 +256,19 @@ private:
     virtual srs_error_t read_token(srs_internal::SrsConfigBuffer* buffer, std::vector<std::string>& args, int& line_start, SrsDirectiveState& state);
 };
 
+// The state for reloading config.
+enum SrsReloadState {
+    SrsReloadStateInit = 0,
+    // Start to parse the new config file.
+    SrsReloadStateParsing = 10,
+    // Start to transform the new config file to new version.
+    SrsReloadStateTransforming = 20,
+    // Start to apply the new config file.
+    SrsReloadStateApplying = 30,
+    // The reload is finished.
+    SrsReloadStateFinished = 90,
+};
+
 // The config service provider.
 // For the config supports reload, so never keep the reference cross st-thread,
 // that is, never save the SrsConfDirective* get by any api of config,
@@ -292,6 +305,9 @@ private:
 protected:
     // The directive root.
     SrsConfDirective* root;
+private:
+    // The cache for parsing the config from environment variables.
+    SrsConfDirective* env_cache_;
 // Reload  section
 private:
     // The reload subscribers, when reload, callback all handlers.
@@ -308,7 +324,7 @@ public:
     virtual void unsubscribe(ISrsReloadHandler* handler);
     // Reload  the config file.
     // @remark, user can test the config before reload it.
-    virtual srs_error_t reload();
+    virtual srs_error_t reload(SrsReloadState *pstate);
 private:
     // Reload  the vhost section of config.
     virtual srs_error_t reload_vhost(SrsConfDirective* old_root);
@@ -520,6 +536,7 @@ public:
     SrsConfDirective* get_rtc(std::string vhost);
     bool get_rtc_enabled(std::string vhost);
     bool get_rtc_keep_bframe(std::string vhost);
+    bool get_rtc_keep_avc_nalu_sei(std::string vhost);
     bool get_rtc_from_rtmp(std::string vhost);
     srs_utime_t get_rtc_stun_timeout(std::string vhost);
     bool get_rtc_stun_strict_check(std::string vhost);
@@ -531,6 +548,8 @@ public:
     bool get_rtc_nack_enabled(std::string vhost);
     bool get_rtc_nack_no_copy(std::string vhost);
     bool get_rtc_twcc_enabled(std::string vhost);
+    int get_rtc_opus_bitrate(std::string vhost);
+    int get_rtc_aac_bitrate(std::string vhost);
 
 // vhost specified section
 public:
@@ -636,6 +655,9 @@ public:
     virtual srs_utime_t get_publish_1stpkt_timeout(std::string vhost);
     // The normal packet timeout in srs_utime_t for encoder.
     virtual srs_utime_t get_publish_normal_timeout(std::string vhost);
+    // The kickoff timeout in srs_utime_t for publisher.
+    virtual srs_utime_t get_publish_kickoff_for_idle(std::string vhost);
+    virtual srs_utime_t get_publish_kickoff_for_idle(SrsConfDirective* vhost);
 private:
     // Get the global chunk size.
     virtual int get_global_chunk_size();
@@ -655,7 +677,7 @@ public:
     // Get the srt service listen port
     virtual unsigned short get_srt_listen_port();
     // Get the srt SRTO_MAXBW, max bandwith, default is -1.
-    virtual int get_srto_maxbw();
+    virtual int64_t get_srto_maxbw();
     // Get the srt SRTO_MSS, Maximum Segment Size, default is 1500.
     virtual int get_srto_mss();
     // Get the srt SRTO_TSBPDMODE, timestamp base packet delivery mode, default is false.
@@ -689,6 +711,7 @@ public:
 private:
     SrsConfDirective* get_srt(std::string vhost);
 public:
+    // TODO: FIXME: Rename to get_vhost_srt_enabled.
     bool get_srt_enabled(std::string vhost);
     bool get_srt_to_rtmp(std::string vhost);
 
@@ -1018,6 +1041,12 @@ public:
     virtual bool get_raw_api_allow_query();
     // Whether allow rpc update.
     virtual bool get_raw_api_allow_update();
+    // Whether http api auth enabled.
+    virtual bool get_http_api_auth_enabled();
+    // Get the http api auth username.
+    virtual std::string get_http_api_auth_username();
+    // Get the http api auth password.
+    virtual std::string get_http_api_auth_password();
 // https api section
 private:
     SrsConfDirective* get_https_api();
@@ -1064,6 +1093,14 @@ public:
     virtual bool get_vhost_http_remux_enabled(SrsConfDirective* vhost);
     // Get the fast cache duration for http audio live stream.
     virtual srs_utime_t get_vhost_http_remux_fast_cache(std::string vhost);
+    // Whether drop packet if not match header.
+    bool get_vhost_http_remux_drop_if_not_match(std::string vhost);
+    // Whether stream has audio track.
+    bool get_vhost_http_remux_has_audio(std::string vhost);
+    // Whether stream has video track.
+    bool get_vhost_http_remux_has_video(std::string vhost);
+    // Whether guessing stream about audio or video track
+    bool get_vhost_http_remux_guess_has_av(std::string vhost);
     // Get the http flv live stream mount point for vhost.
     // used to generate the flv stream mount path.
     virtual std::string get_vhost_http_remux_mount(std::string vhost);
@@ -1082,6 +1119,7 @@ public:
     virtual std::string get_heartbeat_device_id();
     // Whether report with summaries of http api: /api/v1/summaries.
     virtual bool get_heartbeat_summaries();
+    bool get_heartbeat_ports();
 // stats section
 private:
     // Get the stats directive.

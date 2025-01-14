@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_UTEST_CONFIG_HPP
@@ -40,6 +40,28 @@ public:
 protected:
     virtual srs_error_t build_buffer(std::string src, srs_internal::SrsConfigBuffer** pbuffer);
 };
+
+class ISrsSetEnvConfig
+{
+private:
+    std::string key;
+public:
+    ISrsSetEnvConfig(const std::string& k, const std::string& v, bool overwrite) {
+        key = k;
+        srs_setenv(k, v, overwrite);
+    }
+    virtual ~ISrsSetEnvConfig() {
+        srs_unsetenv(key);
+    }
+private:
+    // Adds, changes environment variables, which may starts with $.
+    int srs_setenv(const std::string& key, const std::string& value, bool overwrite);
+    // Deletes environment variables, which may starts with $.
+    int srs_unsetenv(const std::string& key);
+};
+
+#define SrsSetEnvConfig(instance, key, value) \
+    ISrsSetEnvConfig _SRS_free_##instance(key, value, true)
 
 #endif
 

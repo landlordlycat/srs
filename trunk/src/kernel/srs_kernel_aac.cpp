@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #include <srs_kernel_aac.hpp>
@@ -53,10 +53,9 @@ srs_error_t SrsAacTransmuxer::write_audio(int64_t timestamp, char* data, int siz
     srs_assert(data);
     
     timestamp &= 0x7fffffff;
-    
-    SrsBuffer* stream = new SrsBuffer(data, size);
-    SrsAutoFree(SrsBuffer, stream);
-    
+
+    SrsUniquePtr<SrsBuffer> stream(new SrsBuffer(data, size));
+
     // audio decode
     if (!stream->require(1)) {
         return srs_error_new(ERROR_AAC_DECODE_ERROR, "aac decode audio sound_format failed");
@@ -115,7 +114,6 @@ srs_error_t SrsAacTransmuxer::write_audio(int64_t timestamp, char* data, int siz
     // write the ADTS header.
     // @see ISO_IEC_14496-3-AAC-2001.pdf, page 75,
     //      1.A.2.2 Audio_Data_Transport_Stream frame, ADTS
-    // @see https://github.com/ossrs/srs/issues/212#issuecomment-64145885
     // byte_alignment()
     
     // adts_fixed_header:

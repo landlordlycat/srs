@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_APP_DASH_HPP
@@ -162,6 +162,7 @@ public:
 public:
     virtual void dispose();
     virtual srs_error_t cycle();
+    srs_utime_t cleanup_delay();
 public:
     // Initalize the encoder.
     virtual srs_error_t initialize(SrsOriginHub* h, SrsRequest* r);

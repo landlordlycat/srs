@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #include <srs_app_forward.hpp>
@@ -66,6 +66,9 @@ srs_error_t SrsForwarder::initialize(SrsRequest* r, string ep)
     
     // the ep(endpoint) to forward to
     ep_forward = ep;
+
+    // Remember the source context id.
+    source_cid_ = _srs_context->get_id();
     
     return err;
 }
@@ -91,7 +94,7 @@ srs_error_t SrsForwarder::on_publish()
 void SrsForwarder::on_unpublish()
 {
     trd->stop();
-    sdk->close();
+    if (sdk) sdk->close();
 }
 
 srs_error_t SrsForwarder::on_meta_data(SrsSharedPtrMessage* shared_metadata)
@@ -164,7 +167,10 @@ srs_error_t SrsForwarder::on_video(SrsSharedPtrMessage* shared_video)
 srs_error_t SrsForwarder::cycle()
 {
     srs_error_t err = srs_success;
-    
+
+    srs_trace("Forwarder: Start forward %s of source=[%s] to %s",
+        req->get_stream_url().c_str(), source_cid_.c_str(), ep_forward.c_str());
+
     while (true) {
         // We always check status first.
         // @see https://github.com/ossrs/srs/issues/1634#issuecomment-597571561
@@ -240,10 +246,9 @@ srs_error_t SrsForwarder::forward()
     srs_error_t err = srs_success;
     
     sdk->set_recv_timeout(SRS_CONSTS_RTMP_PULSE);
-    
-    SrsPithyPrint* pprint = SrsPithyPrint::create_forwarder();
-    SrsAutoFree(SrsPithyPrint, pprint);
-    
+
+    SrsUniquePtr<SrsPithyPrint> pprint(SrsPithyPrint::create_forwarder());
+
     SrsMessageArray msgs(SYS_MAX_FORWARD_SEND_MSGS);
     
     // update sequence header

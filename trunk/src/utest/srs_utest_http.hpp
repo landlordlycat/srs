@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_UTEST_PROTO_STACK_HPP
@@ -51,6 +51,7 @@ public:
 
 string mock_http_response(int status, string content);
 string mock_http_response2(int status, string content);
+string mock_http_response4(int status, string content);
 bool is_string_contain(string substr, string str);
 
 #define __MOCK_HTTP_EXPECT_STREQ(status, text, w) \
@@ -58,6 +59,9 @@ bool is_string_contain(string substr, string str);
 
 #define __MOCK_HTTP_EXPECT_STREQ2(status, text, w) \
         EXPECT_STREQ(mock_http_response2(status, text).c_str(), HELPER_BUFFER2STR(&w.io.out_buffer).c_str())
+
+#define __MOCK_HTTP_EXPECT_STREQ4(status, text, w) \
+        EXPECT_STREQ(mock_http_response4(status, text).c_str(), HELPER_BUFFER2STR(&w.io.out_buffer).c_str())
 
 #define __MOCK_HTTP_EXPECT_STRHAS(status, text, w) \
         EXPECT_PRED2(is_string_contain, text, HELPER_BUFFER2STR(&w.io.out_buffer).c_str())

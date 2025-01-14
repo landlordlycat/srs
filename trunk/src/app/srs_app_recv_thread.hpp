@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_APP_RECV_THREAD_HPP
@@ -16,6 +16,7 @@
 #include <srs_protocol_stream.hpp>
 #include <srs_core_performance.hpp>
 #include <srs_app_reload.hpp>
+#include <srs_core_autofree.hpp>
 
 class SrsRtmpServer;
 class SrsCommonMessage;
@@ -136,7 +137,6 @@ private:
     // The video frames we got.
     uint64_t video_frames;
     // For mr(merged read),
-    // @see https://github.com/ossrs/srs/issues/241
     bool mr;
     int mr_fd;
     srs_utime_t mr_sleep;
@@ -147,16 +147,15 @@ private:
     srs_error_t recv_error;
     SrsRtmpConn* _conn;
     // The params for conn callback.
-    SrsLiveSource* _source;
+    SrsSharedPtr<SrsLiveSource> source_;
     // The error timeout cond
-    // @see https://github.com/ossrs/srs/issues/244
     srs_cond_t error;
     // The merged context id.
     SrsContextId cid;
     SrsContextId ncid;
 public:
     SrsPublishRecvThread(SrsRtmpServer* rtmp_sdk, SrsRequest* _req,
-        int mr_sock_fd, srs_utime_t tm, SrsRtmpConn* conn, SrsLiveSource* source, SrsContextId parent_cid);
+        int mr_sock_fd, srs_utime_t tm, SrsRtmpConn* conn, SrsSharedPtr<SrsLiveSource> source, SrsContextId parent_cid);
     virtual ~SrsPublishRecvThread();
 public:
     // Wait for error for some timeout.
@@ -205,7 +204,7 @@ public:
     virtual srs_error_t start();
 public:
     virtual srs_error_t pull();
-// Interface ISrsOneCycleThreadHandler
+// Interface ISrsCoroutineHandler
 public:
     virtual srs_error_t cycle();
 };

@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #include <srs_app_listener.hpp>
@@ -688,8 +688,7 @@ srs_error_t SrsUdpMuxListener::cycle()
 {
     srs_error_t err = srs_success;
 
-    SrsPithyPrint* pprint = SrsPithyPrint::create_rtc_recv(srs_netfd_fileno(lfd));
-    SrsAutoFree(SrsPithyPrint, pprint);
+    SrsUniquePtr<SrsPithyPrint> pprint(SrsPithyPrint::create_rtc_recv(srs_netfd_fileno(lfd)));
 
     uint64_t nn_msgs = 0;
     uint64_t nn_msgs_stage = 0;
@@ -697,8 +696,7 @@ srs_error_t SrsUdpMuxListener::cycle()
     uint64_t nn_loop = 0;
     srs_utime_t time_last = srs_get_system_time();
 
-    SrsErrorPithyPrint* pp_pkt_handler_err = new SrsErrorPithyPrint();
-    SrsAutoFree(SrsErrorPithyPrint, pp_pkt_handler_err);
+    SrsUniquePtr<SrsErrorPithyPrint> pp_pkt_handler_err(new SrsErrorPithyPrint());
 
     set_socket_buffer();
 

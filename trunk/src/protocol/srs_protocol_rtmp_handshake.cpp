@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #include <srs_protocol_rtmp_handshake.hpp>
@@ -298,8 +298,6 @@ namespace srs_internal
     {
         srs_error_t err = srs_success;
         
-        int32_t bits_count = 1024;
-        
         close();
         
         //1. Create the DH
@@ -327,10 +325,7 @@ namespace srs_internal
             return srs_error_new(ERROR_OpenSslSetG, "set word");
         }
         
-        // 4. Set the key length
-        DH_set_length(pdh, bits_count);
-        
-        // 5. Generate private and public key
+        // 4. Generate private and public key
         // @see ./test/dhtest.c:152
         if (!DH_generate_key(pdh)) {
             return srs_error_new(ERROR_OpenSslGenerateDHKeys, "dh generate key");
@@ -527,16 +522,16 @@ namespace srs_internal
         srs_error_t err = srs_success;
         
         // generate digest
-        char* c1_digest = NULL;
+        char* c1_digest_raw = NULL;
         
-        if ((err = calc_c1_digest(owner, c1_digest)) != srs_success) {
+        if ((err = calc_c1_digest(owner, c1_digest_raw)) != srs_success) {
             return srs_error_wrap(err, "sign c1");
         }
         
-        srs_assert(c1_digest != NULL);
-        SrsAutoFreeA(char, c1_digest);
-        
-        memcpy(digest.digest, c1_digest, 32);
+        srs_assert(c1_digest_raw != NULL);
+        SrsUniquePtr<char[]> c1_digest(c1_digest_raw);
+
+        memcpy(digest.digest, c1_digest.get(), 32);
         
         return err;
     }
@@ -545,16 +540,16 @@ namespace srs_internal
     {
         srs_error_t err = srs_success;
         
-        char* c1_digest = NULL;
+        char* c1_digest_raw = NULL;
         
-        if ((err = calc_c1_digest(owner, c1_digest)) != srs_success) {
+        if ((err = calc_c1_digest(owner, c1_digest_raw)) != srs_success) {
             return srs_error_wrap(err, "validate c1");
         }
         
-        srs_assert(c1_digest != NULL);
-        SrsAutoFreeA(char, c1_digest);
+        srs_assert(c1_digest_raw != NULL);
+        SrsUniquePtr<char[]> c1_digest(c1_digest_raw);
         
-        is_valid = srs_bytes_equals(digest.digest, c1_digest, 32);
+        is_valid = srs_bytes_equals(digest.digest, c1_digest.get(), 32);
         
         return err;
     }
@@ -581,15 +576,15 @@ namespace srs_internal
         // TODO: FIXME: use the actual key size.
         //srs_assert(pkey_size == 128);
         
-        char* s1_digest = NULL;
-        if ((err = calc_s1_digest(owner, s1_digest))  != srs_success) {
+        char* s1_digest_raw = NULL;
+        if ((err = calc_s1_digest(owner, s1_digest_raw))  != srs_success) {
             return srs_error_wrap(err, "calc s1 digest");
         }
         
-        srs_assert(s1_digest != NULL);
-        SrsAutoFreeA(char, s1_digest);
-        
-        memcpy(digest.digest, s1_digest, 32);
+        srs_assert(s1_digest_raw != NULL);
+        SrsUniquePtr<char[]> s1_digest(s1_digest_raw);
+
+        memcpy(digest.digest, s1_digest.get(), 32);
         
         return err;
     }
@@ -598,16 +593,16 @@ namespace srs_internal
     {
         srs_error_t err = srs_success;
         
-        char* s1_digest = NULL;
+        char* s1_digest_raw = NULL;
         
-        if ((err = calc_s1_digest(owner, s1_digest)) != srs_success) {
+        if ((err = calc_s1_digest(owner, s1_digest_raw)) != srs_success) {
             return srs_error_wrap(err, "validate s1");
         }
         
-        srs_assert(s1_digest != NULL);
-        SrsAutoFreeA(char, s1_digest);
+        srs_assert(s1_digest_raw != NULL);
+        SrsUniquePtr<char[]> s1_digest(s1_digest_raw);
         
-        is_valid = srs_bytes_equals(digest.digest, s1_digest, 32);
+        is_valid = srs_bytes_equals(digest.digest, s1_digest.get(), 32);
         
         return err;
     }
@@ -616,21 +611,18 @@ namespace srs_internal
     {
         srs_error_t err = srs_success;
         
-        /**
-         * c1s1 is splited by digest:
-         *     c1s1-part1: n bytes (time, version, key and digest-part1).
-         *     digest-data: 32bytes
-         *     c1s1-part2: (1536-n-32)bytes (digest-part2)
-         * @return a new allocated bytes, user must free it.
-         */
-        char* c1s1_joined_bytes = new char[1536 -32];
-        SrsAutoFreeA(char, c1s1_joined_bytes);
-        if ((err = copy_to(owner, c1s1_joined_bytes, 1536 - 32, false)) != srs_success) {
+        // c1s1 is splited by digest:
+        //     c1s1-part1: n bytes (time, version, key and digest-part1).
+        //     digest-data: 32bytes
+        //     c1s1-part2: (1536-n-32)bytes (digest-part2)
+        // @return a new allocated bytes, user must free it.
+        SrsUniquePtr<char[]> c1s1_joined_bytes(new char[1536 -32]);
+        if ((err = copy_to(owner, c1s1_joined_bytes.get(), 1536 - 32, false)) != srs_success) {
             return srs_error_wrap(err, "copy bytes");
         }
         
         c1_digest = new char[SRS_OpensslHashSize];
-        if ((err = openssl_HMACsha256(SrsGenuineFPKey, 30, c1s1_joined_bytes, 1536 - 32, c1_digest)) != srs_success) {
+        if ((err = openssl_HMACsha256(SrsGenuineFPKey, 30, c1s1_joined_bytes.get(), 1536 - 32, c1_digest)) != srs_success) {
             srs_freepa(c1_digest);
             return srs_error_wrap(err, "calc c1 digest");
         }
@@ -642,21 +634,18 @@ namespace srs_internal
     {
         srs_error_t err = srs_success;
         
-        /**
-         * c1s1 is splited by digest:
-         *     c1s1-part1: n bytes (time, version, key and digest-part1).
-         *     digest-data: 32bytes
-         *     c1s1-part2: (1536-n-32)bytes (digest-part2)
-         * @return a new allocated bytes, user must free it.
-         */
-        char* c1s1_joined_bytes = new char[1536 -32];
-        SrsAutoFreeA(char, c1s1_joined_bytes);
-        if ((err = copy_to(owner, c1s1_joined_bytes, 1536 - 32, false)) != srs_success) {
+        // c1s1 is splited by digest:
+        //     c1s1-part1: n bytes (time, version, key and digest-part1).
+        //     digest-data: 32bytes
+        //     c1s1-part2: (1536-n-32)bytes (digest-part2)
+        // @return a new allocated bytes, user must free it.
+        SrsUniquePtr<char[]> c1s1_joined_bytes(new char[1536 -32]);
+        if ((err = copy_to(owner, c1s1_joined_bytes.get(), 1536 - 32, false)) != srs_success) {
             return srs_error_wrap(err, "copy bytes");
         }
         
         s1_digest = new char[SRS_OpensslHashSize];
-        if ((err = openssl_HMACsha256(SrsGenuineFMSKey, 36, c1s1_joined_bytes, 1536 - 32, s1_digest)) != srs_success) {
+        if ((err = openssl_HMACsha256(SrsGenuineFMSKey, 36, c1s1_joined_bytes.get(), 1536 - 32, s1_digest)) != srs_success) {
             srs_freepa(s1_digest);
             return srs_error_wrap(err, "calc s1 digest");
         }

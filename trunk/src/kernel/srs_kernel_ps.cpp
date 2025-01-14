@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #include <srs_kernel_ps.hpp>
@@ -107,8 +107,7 @@ srs_error_t SrsPsContext::decode(SrsBuffer* stream, ISrsPsMessageHandler* handle
         }
 
         // Reap the last completed PS message.
-        SrsTsMessage* msg = reap();
-        SrsAutoFree(SrsTsMessage, msg);
+        SrsUniquePtr<SrsTsMessage> msg(reap());
 
         if (msg->sid == SrsTsPESStreamIdProgramStreamMap) {
             if (!msg->payload || !msg->payload->length()) {
@@ -136,7 +135,7 @@ srs_error_t SrsPsContext::decode(SrsBuffer* stream, ISrsPsMessageHandler* handle
             helper_.pack_nn_msgs_++;
 
             //srs_error("PS: Got message %s, dts=%" PRId64 ", payload=%dB", msg->is_video() ? "Video" : "Audio", msg->dts/9000, msg->PES_packet_length);
-            if (handler && (err = handler->on_ts_message(msg)) != srs_success) {
+            if (handler && (err = handler->on_ts_message(msg.get())) != srs_success) {
                 return srs_error_wrap(err, "handle PS message");
             }
         } else {
@@ -427,15 +426,16 @@ srs_error_t SrsPsPsmPacket::decode(SrsBuffer* stream)
         return srs_error_new(ERROR_GB_PS_HEADER, "requires 4 only %d bytes", stream->left());
     }
 
-    uint16_t r0 = stream->read_2bytes();
-    if ((r0&0x01) != 0x01) {
-        return srs_error_new(ERROR_GB_PS_HEADER, "invalid marker of 0x%#x", r0);
-    }
-
-    program_stream_map_version_ = (uint8_t)(r0&0x1f);
-    current_next_indicator_ = (uint8_t)((r0>>7) & 0x01);
+    uint8_t r0 = stream->read_1bytes();
+    program_stream_map_version_ = r0&0x1f;
+    current_next_indicator_ = (r0>>7) & 0x01;
     if (!current_next_indicator_) {
         return srs_error_new(ERROR_GB_PS_HEADER, "invalid indicator of 0x%#x", r0);
+    }
+
+    uint8_t r1 = stream->read_1bytes();
+    if ((r1&0x01) != 0x01) {
+        return srs_error_new(ERROR_GB_PS_HEADER, "invalid marker of 0x%#x", r1);
     }
 
     program_stream_info_length_ = stream->read_2bytes();

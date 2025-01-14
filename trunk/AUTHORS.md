@@ -1,25 +1,24 @@
+## AUTHORS
+
+The authors and administrators of SRS, ordered by first contribution:
+
+- `Winlin<winlinvip@gmail.com>`
+- `XiaoZhihong<hondaxiao@tencent.com>`
+
 ## TOC
 
-The TOC(Technical Oversight Committee):
+The TOC(Technical Oversight Committee), ordered by first contribution:
 
-- `Winlin<winlin@vip.126.com>`
+- `Winlin<winlinvip@gmail.com>`
 - `ZhaoWenjie<zhaowenjie@tal.com>`
-- `ShiWei<shiwei05@kuaishou.com>`
+- `ShiWei<xiaoq_bj@126.com>`
 - `XiaoZhihong<hondaxiao@tencent.com>`
 - `WuPengqiang<pengqiang.wpq@alibaba-inc.com>`
 - `XiaLixin<xialixin@kanzhun.com>`
-- `LiPeng<mozhan.lp@alibaba-inc.com>`
+- `LiPeng<lipeng19811218@gmail.com>`
 - `ChenGuanghua<jinxue.cgh@alibaba-inc.com>`
 - `ChenHaibo<nmgchenhaibo@foxmail.com>`
-
-## Developers
-
-Active developers:
-
-- `Johzzy<hellojinqiang@gmail.com>`
-- `Zhouxiaojun2008<279686030@qq.com>`
-- `Pengfei.ma<pengfei.ma.chn@outlook.com>`
-- `ZhangJunqin<zhangjunqin@jd.com>`
+- `ZhangJunqin<chundonglinlin@126.com>`
 
 ## CONTRIBUTORS
 
@@ -40,6 +39,8 @@ CONTRIBUTORS ordered by first contribution.
 * `Johnny<fengjihu@163.com>`
 * `karthikeyan<keyanmca@gmail.com>`
 * `StevenLiu<lq@chinaffmpeg.org>`
+* `StevenLiu<lingjiujianke@gmail.com>`
+* `StevenLiu<liuqi05@kuaishou.com>`
 * `zhengfl<zhengfl_1989@126.com>`
 * `tufang14<breadbean1449@gmail.com>`
 * `allspace<allspace@gmail.com>`
@@ -72,7 +73,6 @@ CONTRIBUTORS ordered by first contribution.
 * `hankun<hankun@bravovcloud.com>`
 * `JonathanBarratt<jonathan.barratt@gmail.com>`
 * `KeeganH<keeganwharris@gmail.com>`
-* `StevenLiu<lingjiujianke@gmail.com>`
 * `liuxc0116<liuxc0116@gmail.com>`
 * `ChengdongZhang<lmajzcd@sina.com>`
 * `lovacat<lovecat@china.sina.com>`
@@ -88,6 +88,7 @@ CONTRIBUTORS ordered by first contribution.
 * `lam2003<linmin3@yy.com>`
 * `ShiWei<shiwei05@kuaishou.com>`
 * `ShiWei<shi.weibd@hotmail.com>`
+* `ShiWei<xiaoq_bj@126.com>`
 * `XiaofengWang<wasphin@gmail.com>`
 * `XiaoZhihong<hondaxiao@tencent.com>`
 * `XiaoZhihong<xiaozhihong8@gmail.com>`
@@ -144,4 +145,21 @@ CONTRIBUTORS ordered by first contribution.
 * `xmedia-systems<xmedia.systems@gmail.com>`
 * `MatinZadehDolatabad<zadehdolatabad@gmail.com>`
 * `zozobreakzou<zozobreak@163.com>`
+* `mingo-wu<57790355+mingo-wu1@users.noreply.github.com>`
+* `CommanderRoot<CommanderRoot@users.noreply.github.com>`
+* `dev-clavis<declavis.company@gmail.com>`
+* `everything411<everything411@163.com>`
+* `faicker<faicker.mo@gmail.com>`
+* `Matthew<matthewgao@gmail.com>`
+* `simon1tan1<107955289+simon1tan1@users.noreply.github.com>`
+* `feng<308276366@qq.com>`
+* `wangzhen<wrennywang@hotmail.com>`
+* `yashwardhan-jyani<100014271+yashwardhan-jyani@users.noreply.github.com>`
+* `qyt<486179@qq.com>`
+* `Kazuo<hagihara@miharu.co.jp>`
+* `MarkCao<industriousonesoft@gmail.com>`
+* `Mr.Li<iskyman@163.com>`
+* `Loken<lokenetwork@users.noreply.github.com>`
+* `JacobSu<suzp1984@gmail.com>`
+* `terrencetang2023<tangshaoteng@163.com>`
 

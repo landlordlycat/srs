@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #include <srs_kernel_ts.hpp>
@@ -156,6 +156,7 @@ SrsTsMessage* SrsTsMessage::detach()
 {
     // @remark the packet cannot be used, but channel is ok.
     SrsTsMessage* cp = new SrsTsMessage(channel, NULL);
+    cp->ps_helper_ = ps_helper_;
     cp->start_pts = start_pts;
     cp->write_pcr = write_pcr;
     cp->is_discontinuity = is_discontinuity;
@@ -256,20 +257,20 @@ srs_error_t SrsTsContext::decode(SrsBuffer* stream, ISrsTsHandler* handler)
     // parse util EOF of stream.
     // for example, parse multiple times for the PES_packet_length(0) packet.
     while (!stream->empty()) {
-        SrsTsPacket* packet = new SrsTsPacket(this);
-        SrsAutoFree(SrsTsPacket, packet);
-        
-        SrsTsMessage* msg = NULL;
-        if ((err = packet->decode(stream, &msg)) != srs_success) {
+        SrsUniquePtr<SrsTsPacket> packet(new SrsTsPacket(this));
+
+        SrsTsMessage* msg_raw = NULL;
+        if ((err = packet->decode(stream, &msg_raw)) != srs_success) {
             return srs_error_wrap(err, "ts: ts packet decode");
         }
         
-        if (!msg) {
+        if (!msg_raw) {
             continue;
         }
-        SrsAutoFree(SrsTsMessage, msg);
+
+        SrsUniquePtr<SrsTsMessage> msg(msg_raw);
         
-        if ((err = handler->on_ts_message(msg)) != srs_success) {
+        if ((err = handler->on_ts_message(msg.get())) != srs_success) {
             return srs_error_wrap(err, "ts: handle ts message");
         }
     }
@@ -371,7 +372,7 @@ srs_error_t SrsTsContext::encode_pat_pmt(ISrsStreamWriter* writer, int16_t vpid,
 
     bool codec_ok = (vs == SrsTsStreamVideoH264 || as == SrsTsStreamAudioAAC || as == SrsTsStreamAudioMp3);
 #ifdef SRS_H265
-    codec_ok = codec_ok ? : (vs == SrsTsStreamVideoHEVC);
+    codec_ok = codec_ok ? true : (vs == SrsTsStreamVideoHEVC);
 #endif
     if (!codec_ok) {
         return srs_error_new(ERROR_HLS_NO_STREAM, "ts: no PID, vs=%d, as=%d", vs, as);
@@ -380,46 +381,42 @@ srs_error_t SrsTsContext::encode_pat_pmt(ISrsStreamWriter* writer, int16_t vpid,
     int16_t pmt_number = TS_PMT_NUMBER;
     int16_t pmt_pid = TS_PMT_PID;
     if (true) {
-        SrsTsPacket* pkt = SrsTsPacket::create_pat(this, pmt_number, pmt_pid);
-        SrsAutoFree(SrsTsPacket, pkt);
-        
+        SrsUniquePtr<SrsTsPacket> pkt(SrsTsPacket::create_pat(this, pmt_number, pmt_pid));
+
         pkt->sync_byte = sync_byte;
-        
-        char* buf = new char[SRS_TS_PACKET_SIZE];
-        SrsAutoFreeA(char, buf);
-        
+
+        SrsUniquePtr<char[]> buf(new char[SRS_TS_PACKET_SIZE]);
+
         // set the left bytes with 0xFF.
         int nb_buf = pkt->size();
         srs_assert(nb_buf < SRS_TS_PACKET_SIZE);
-        memset(buf + nb_buf, 0xFF, SRS_TS_PACKET_SIZE - nb_buf);
+        memset(buf.get() + nb_buf, 0xFF, SRS_TS_PACKET_SIZE - nb_buf);
         
-        SrsBuffer stream(buf, nb_buf);
+        SrsBuffer stream(buf.get(), nb_buf);
         if ((err = pkt->encode(&stream)) != srs_success) {
             return srs_error_wrap(err, "ts: encode packet");
         }
-        if ((err = writer->write(buf, SRS_TS_PACKET_SIZE, NULL)) != srs_success) {
+        if ((err = writer->write(buf.get(), SRS_TS_PACKET_SIZE, NULL)) != srs_success) {
             return srs_error_wrap(err, "ts: write packet");
         }
     }
     if (true) {
-        SrsTsPacket* pkt = SrsTsPacket::create_pmt(this, pmt_number, pmt_pid, vpid, vs, apid, as);
-        SrsAutoFree(SrsTsPacket, pkt);
-        
+        SrsUniquePtr<SrsTsPacket> pkt(SrsTsPacket::create_pmt(this, pmt_number, pmt_pid, vpid, vs, apid, as));
+
         pkt->sync_byte = sync_byte;
-        
-        char* buf = new char[SRS_TS_PACKET_SIZE];
-        SrsAutoFreeA(char, buf);
-        
+
+        SrsUniquePtr<char[]> buf(new char[SRS_TS_PACKET_SIZE]);
+
         // set the left bytes with 0xFF.
         int nb_buf = pkt->size();
         srs_assert(nb_buf < SRS_TS_PACKET_SIZE);
-        memset(buf + nb_buf, 0xFF, SRS_TS_PACKET_SIZE - nb_buf);
+        memset(buf.get() + nb_buf, 0xFF, SRS_TS_PACKET_SIZE - nb_buf);
         
-        SrsBuffer stream(buf, nb_buf);
+        SrsBuffer stream(buf.get(), nb_buf);
         if ((err = pkt->encode(&stream)) != srs_success) {
             return srs_error_wrap(err, "ts: encode packet");
         }
-        if ((err = writer->write(buf, SRS_TS_PACKET_SIZE, NULL)) != srs_success) {
+        if ((err = writer->write(buf.get(), SRS_TS_PACKET_SIZE, NULL)) != srs_success) {
             return srs_error_wrap(err, "ts: write packet");
         }
     }
@@ -445,7 +442,7 @@ srs_error_t SrsTsContext::encode_pes(ISrsStreamWriter* writer, SrsTsMessage* msg
 
     bool codec_ok = (sid == SrsTsStreamVideoH264 || sid == SrsTsStreamAudioAAC || sid == SrsTsStreamAudioMp3);
 #ifdef SRS_H265
-    codec_ok = codec_ok ? : (sid == SrsTsStreamVideoHEVC);
+    codec_ok = codec_ok ? true : (sid == SrsTsStreamVideoHEVC);
 #endif
     if (!codec_ok) {
         srs_info("ts: ignore the unknown stream, sid=%d", sid);
@@ -460,7 +457,7 @@ srs_error_t SrsTsContext::encode_pes(ISrsStreamWriter* writer, SrsTsMessage* msg
     char* p = start;
     
     while (p < end) {
-        SrsTsPacket* pkt = NULL;
+        SrsTsPacket* pkt_raw = NULL;
         if (p == start) {
             // write pcr according to message.
             bool write_pcr = msg->write_pcr;
@@ -484,20 +481,19 @@ srs_error_t SrsTsContext::encode_pes(ISrsStreamWriter* writer, SrsTsMessage* msg
             int64_t pcr = write_pcr? msg->dts : -1;
             
             // TODO: FIXME: finger it why use discontinuity of msg.
-            pkt = SrsTsPacket::create_pes_first(this,
+            pkt_raw = SrsTsPacket::create_pes_first(this,
                 pid, msg->sid, channel->continuity_counter++, msg->is_discontinuity,
                 pcr, msg->dts, msg->pts, msg->payload->length()
             );
         } else {
-            pkt = SrsTsPacket::create_pes_continue(this, pid, msg->sid, channel->continuity_counter++);
+            pkt_raw = SrsTsPacket::create_pes_continue(this, pid, msg->sid, channel->continuity_counter++);
         }
-        SrsAutoFree(SrsTsPacket, pkt);
-        
+        SrsUniquePtr<SrsTsPacket> pkt(pkt_raw);
+
         pkt->sync_byte = sync_byte;
-        
-        char* buf = new char[SRS_TS_PACKET_SIZE];
-        SrsAutoFreeA(char, buf);
-        
+
+        SrsUniquePtr<char[]> buf(new char[SRS_TS_PACKET_SIZE]);
+
         // set the left bytes with 0xFF.
         int nb_buf = pkt->size();
         srs_assert(nb_buf < SRS_TS_PACKET_SIZE);
@@ -506,7 +502,7 @@ srs_error_t SrsTsContext::encode_pes(ISrsStreamWriter* writer, SrsTsMessage* msg
         int nb_stuffings = SRS_TS_PACKET_SIZE - nb_buf - left;
         if (nb_stuffings > 0) {
             // set all bytes to stuffings.
-            memset(buf, 0xFF, SRS_TS_PACKET_SIZE);
+            memset(buf.get(), 0xFF, SRS_TS_PACKET_SIZE);
             
             // padding with stuffings.
             pkt->padding(nb_stuffings);
@@ -519,14 +515,14 @@ srs_error_t SrsTsContext::encode_pes(ISrsStreamWriter* writer, SrsTsMessage* msg
             nb_stuffings = SRS_TS_PACKET_SIZE - nb_buf - left;
             srs_assert(nb_stuffings == 0);
         }
-        memcpy(buf + nb_buf, p, left);
+        memcpy(buf.get() + nb_buf, p, left);
         p += left;
         
-        SrsBuffer stream(buf, nb_buf);
+        SrsBuffer stream(buf.get(), nb_buf);
         if ((err = pkt->encode(&stream)) != srs_success) {
             return srs_error_wrap(err, "ts: encode packet");
         }
-        if ((err = writer->write(buf, SRS_TS_PACKET_SIZE, NULL)) != srs_success) {
+        if ((err = writer->write(buf.get(), SRS_TS_PACKET_SIZE, NULL)) != srs_success) {
             return srs_error_wrap(err, "ts: write packet");
         }
     }
@@ -775,7 +771,7 @@ SrsTsPacket* SrsTsPacket::create_pmt(SrsTsContext* context,
     // Here we must get the correct codec.
     bool codec_ok = (vs == SrsTsStreamVideoH264 || as == SrsTsStreamAudioAAC || as == SrsTsStreamAudioMp3);
 #ifdef SRS_H265
-    codec_ok = codec_ok ? : (vs == SrsTsStreamVideoHEVC);
+    codec_ok = codec_ok ? true : (vs == SrsTsStreamVideoHEVC);
 #endif
     srs_assert(codec_ok);
 
@@ -790,7 +786,7 @@ SrsTsPacket* SrsTsPacket::create_pmt(SrsTsContext* context,
     // If h.264/h.265 specified, use video to carry pcr.
     codec_ok = (vs == SrsTsStreamVideoH264);
 #ifdef SRS_H265
-    codec_ok = codec_ok ? : (vs == SrsTsStreamVideoHEVC);
+    codec_ok = codec_ok ? true : (vs == SrsTsStreamVideoHEVC);
 #endif
     if (codec_ok) {
         pmt->PCR_PID = vpid;
@@ -1849,7 +1845,7 @@ srs_error_t SrsMpegPES::decode_33bits_dts_pts(SrsBuffer* stream, int64_t* pv)
     }
 
     // decode the 33bits schema.
-    // ===========1B
+    // --------------1B
     // 4bits const maybe '0001', '0010' or '0011'.
     // 3bits DTS/PTS [32..30]
     // 1bit const '1'
@@ -1864,7 +1860,7 @@ srs_error_t SrsMpegPES::decode_33bits_dts_pts(SrsBuffer* stream, int64_t* pv)
     }
     dts_pts_30_32 = (dts_pts_30_32 >> 1) & 0x07;
 
-    // ===========2B
+    // --------------2B
     // 15bits DTS/PTS [29..15]
     // 1bit const '1'
     int64_t dts_pts_15_29 = stream->read_2bytes();
@@ -1873,7 +1869,7 @@ srs_error_t SrsMpegPES::decode_33bits_dts_pts(SrsBuffer* stream, int64_t* pv)
     }
     dts_pts_15_29 = (dts_pts_15_29 >> 1) & 0x7fff;
 
-    // ===========2B
+    // --------------2B
     // 15bits DTS/PTS [14..0]
     // 1bit const '1'
     int64_t dts_pts_0_14 = stream->read_2bytes();
@@ -1951,8 +1947,13 @@ srs_error_t SrsTsPayloadPES::decode(SrsBuffer* stream, SrsTsMessage** ppmsg)
     // check when fresh, the payload_unit_start_indicator
     // should be 1 for the fresh msg.
     if (is_fresh_msg && !packet->payload_unit_start_indicator) {
-        return srs_error_new(ERROR_STREAM_CASTER_TS_PSE, "ts: PES fresh packet length=%d, us=%d, cc=%d",
+        srs_warn("ts: PES fresh packet length=%d, us=%d, cc=%d",
             msg->PES_packet_length, packet->payload_unit_start_indicator, packet->continuity_counter);
+
+        stream->skip(stream->size() - stream->pos());
+        srs_freep(msg);
+        channel->msg = NULL;
+        return err;
     }
 
     // check when not fresh and PES_packet_length>0,
@@ -2676,9 +2677,9 @@ SrsTsContextWriter::SrsTsContextWriter(ISrsStreamWriter* w, SrsTsContext* c, Srs
 {
     writer = w;
     context = c;
-    
-    acodec = ac;
-    vcodec = vc;
+
+    acodec_ = ac;
+    vcodec_ = vc;
 }
 
 SrsTsContextWriter::~SrsTsContextWriter()
@@ -2688,11 +2689,11 @@ SrsTsContextWriter::~SrsTsContextWriter()
 srs_error_t SrsTsContextWriter::write_audio(SrsTsMessage* audio)
 {
     srs_error_t err = srs_success;
+
+    srs_info("hls: write audio codec=%d/%d, pts=%" PRId64 ", dts=%" PRId64 ", size=%d",
+        acodec_, vcodec_, audio->pts, audio->dts, audio->PES_packet_length);
     
-    srs_info("hls: write audio pts=%" PRId64 ", dts=%" PRId64 ", size=%d",
-        audio->pts, audio->dts, audio->PES_packet_length);
-    
-    if ((err = context->encode(writer, audio, vcodec, acodec)) != srs_success) {
+    if ((err = context->encode(writer, audio, vcodec_, acodec_)) != srs_success) {
         return srs_error_wrap(err, "ts: write audio");
     }
     srs_info("hls encode audio ok");
@@ -2704,10 +2705,10 @@ srs_error_t SrsTsContextWriter::write_video(SrsTsMessage* video)
 {
     srs_error_t err = srs_success;
     
-    srs_info("hls: write video pts=%" PRId64 ", dts=%" PRId64 ", size=%d",
-        video->pts, video->dts, video->PES_packet_length);
+    srs_info("hls: write video codec=%d/%d, pts=%" PRId64 ", dts=%" PRId64 ", size=%d",
+        acodec_, vcodec_, video->pts, video->dts, video->PES_packet_length);
     
-    if ((err = context->encode(writer, video, vcodec, acodec)) != srs_success) {
+    if ((err = context->encode(writer, video, vcodec_, acodec_)) != srs_success) {
         return srs_error_wrap(err, "ts: write video");
     }
     srs_info("hls encode video ok");
@@ -2715,14 +2716,24 @@ srs_error_t SrsTsContextWriter::write_video(SrsTsMessage* video)
     return err;
 }
 
-SrsVideoCodecId SrsTsContextWriter::video_codec()
+SrsVideoCodecId SrsTsContextWriter::vcodec()
 {
-    return vcodec;
+    return vcodec_;
 }
 
-void SrsTsContextWriter::update_video_codec(SrsVideoCodecId v)
+void SrsTsContextWriter::set_vcodec(SrsVideoCodecId v)
 {
-    vcodec = v;
+    vcodec_ = v;
+}
+
+SrsAudioCodecId SrsTsContextWriter::acodec()
+{
+    return acodec_;
+}
+
+void SrsTsContextWriter::set_acodec(SrsAudioCodecId v)
+{
+    acodec_ = v;
 }
 
 SrsEncFileWriter::SrsEncFileWriter()
@@ -2757,14 +2768,13 @@ srs_error_t SrsEncFileWriter::write(void* data, size_t count, ssize_t* pnwrite)
     
     if (nb_buf == HLS_AES_ENCRYPT_BLOCK_LENGTH) {
         nb_buf = 0;
-        
-        char* cipher = new char[HLS_AES_ENCRYPT_BLOCK_LENGTH];
-        SrsAutoFreeA(char, cipher);
-        
+
+        SrsUniquePtr<char[]> cipher(new char[HLS_AES_ENCRYPT_BLOCK_LENGTH]);
+
         AES_KEY* k = (AES_KEY*)key;
-        AES_cbc_encrypt((unsigned char *)buf, (unsigned char *)cipher, HLS_AES_ENCRYPT_BLOCK_LENGTH, k, iv, AES_ENCRYPT);
+        AES_cbc_encrypt((unsigned char *)buf, (unsigned char *)cipher.get(), HLS_AES_ENCRYPT_BLOCK_LENGTH, k, iv, AES_ENCRYPT);
         
-        if ((err = SrsFileWriter::write(cipher, HLS_AES_ENCRYPT_BLOCK_LENGTH, pnwrite)) != srs_success) {
+        if ((err = SrsFileWriter::write(cipher.get(), HLS_AES_ENCRYPT_BLOCK_LENGTH, pnwrite)) != srs_success) {
             return srs_error_wrap(err, "write cipher");
         }
     }
@@ -2793,15 +2803,14 @@ void SrsEncFileWriter::close()
         if (nb_padding > 0) {
             memset(buf + nb_buf, nb_padding, nb_padding);
         }
-        
-        char* cipher = new char[nb_buf + nb_padding];
-        SrsAutoFreeA(char, cipher);
-        
+
+        SrsUniquePtr<char[]> cipher(new char[nb_buf + nb_padding]);
+
         AES_KEY* k = (AES_KEY*)key;
-        AES_cbc_encrypt((unsigned char *)buf, (unsigned char *)cipher, nb_buf + nb_padding, k, iv, AES_ENCRYPT);
+        AES_cbc_encrypt((unsigned char *)buf, (unsigned char *)cipher.get(), nb_buf + nb_padding, k, iv, AES_ENCRYPT);
         
         srs_error_t err = srs_success;
-        if ((err = SrsFileWriter::write(cipher, nb_buf + nb_padding, NULL)) != srs_success) {
+        if ((err = SrsFileWriter::write(cipher.get(), nb_buf + nb_padding, NULL)) != srs_success) {
             srs_warn("ignore err %s", srs_error_desc(err).c_str());
             srs_error_reset(err);
         }
@@ -3166,6 +3175,8 @@ SrsTsTransmuxer::SrsTsTransmuxer()
     tsmc = new SrsTsMessageCache();
     context = new SrsTsContext();
     tscw = NULL;
+    has_audio_ = has_video_ = true;
+    guess_has_av_ = true;
 }
 
 SrsTsTransmuxer::~SrsTsTransmuxer()
@@ -3174,6 +3185,33 @@ SrsTsTransmuxer::~SrsTsTransmuxer()
     srs_freep(tsmc);
     srs_freep(tscw);
     srs_freep(context);
+}
+
+void SrsTsTransmuxer::set_has_audio(bool v)
+{
+    has_audio_ = v;
+
+    if (tscw != NULL && !v) {
+        tscw->set_acodec(SrsAudioCodecIdForbidden);
+    }
+}
+
+void SrsTsTransmuxer::set_has_video(bool v)
+{
+    has_video_ = v;
+
+    if (tscw != NULL && !v) {
+        tscw->set_vcodec(SrsVideoCodecIdForbidden);
+    }
+}
+
+void SrsTsTransmuxer::set_guess_has_av(bool v)
+{
+    guess_has_av_ = v;
+    if (tscw != NULL && v) {
+        tscw->set_acodec(SrsAudioCodecIdForbidden);
+        tscw->set_vcodec(SrsVideoCodecIdForbidden);
+    }
 }
 
 srs_error_t SrsTsTransmuxer::initialize(ISrsStreamWriter* fw)
@@ -3187,11 +3225,18 @@ srs_error_t SrsTsTransmuxer::initialize(ISrsStreamWriter* fw)
     srs_assert(fw);
     
     writer = fw;
-    
+
+    SrsAudioCodecId acodec = has_audio_ ? SrsAudioCodecIdAAC : SrsAudioCodecIdForbidden;
+    SrsVideoCodecId vcodec = has_video_ ? SrsVideoCodecIdAVC : SrsVideoCodecIdForbidden;
+
+    if (guess_has_av_) {
+        acodec = SrsAudioCodecIdForbidden;
+        vcodec = SrsVideoCodecIdForbidden;
+    }
+
     srs_freep(tscw);
-    // TODO: FIXME: Support config the codec.
-    tscw = new SrsTsContextWriter(fw, context, SrsAudioCodecIdAAC, SrsVideoCodecIdAVC);
-    
+    tscw = new SrsTsContextWriter(fw, context, acodec, vcodec);
+
     return err;
 }
 
@@ -3216,6 +3261,13 @@ srs_error_t SrsTsTransmuxer::write_audio(int64_t timestamp, char* data, int size
     // for aac: ignore sequence header
     if (format->acodec->id == SrsAudioCodecIdAAC && format->audio->aac_packet_type == SrsAudioAacFrameTraitSequenceHeader) {
         return err;
+    }
+
+    // Switch audio codec if not AAC.
+    if (tscw->acodec() != format->acodec->id) {
+        srs_trace("TS: Switch audio codec %d(%s) to %d(%s)", tscw->acodec(), srs_audio_codec_id2str(tscw->acodec()).c_str(),
+            format->acodec->id, srs_audio_codec_id2str(format->acodec->id).c_str());
+        tscw->set_acodec(format->acodec->id);
     }
     
     // the dts calc from rtmp/flv header.
@@ -3254,16 +3306,16 @@ srs_error_t SrsTsTransmuxer::write_video(int64_t timestamp, char* data, int size
         return err;
     }
 
-    bool codec_ok = (format->vcodec->id != SrsVideoCodecIdAVC);
+    bool codec_ok = (format->vcodec->id == SrsVideoCodecIdAVC);
 #ifdef SRS_H265
-    codec_ok = codec_ok ? : (format->vcodec->id != SrsVideoCodecIdHEVC);
+    codec_ok = codec_ok ? true : (format->vcodec->id == SrsVideoCodecIdHEVC);
 #endif
     if (!codec_ok) {
         return err;
     }
 
     // The video codec might change during streaming.
-    tscw->update_video_codec(format->vcodec->id);
+    tscw->set_vcodec(format->vcodec->id);
     
     // ignore sequence header
     if (format->video->frame_type == SrsVideoAvcFrameTypeKeyFrame && format->video->avc_packet_type == SrsVideoAvcFrameTraitSequenceHeader) {

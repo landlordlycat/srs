@@ -1,6 +1,6 @@
 // The MIT License (MIT)
 //
-// Copyright (c) 2021 Winlin
+// # Copyright (c) 2025 Winlin
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of
 // this software and associated documentation files (the "Software"), to deal in
@@ -35,6 +35,7 @@ import (
 	"github.com/ossrs/go-oryx-lib/logger"
 	"github.com/ossrs/go-oryx-lib/rtmp"
 	"github.com/pion/interceptor"
+	"github.com/pkg/errors"
 )
 
 func TestRtmpPublishPlay(t *testing.T) {
@@ -390,6 +391,252 @@ func TestRtmpPublish_MultipleSequences_RtcPlay(t *testing.T) {
 		return nil
 	}()
 	if err := filterTestError(ctx.Err(), err, r0, r1, r2); err != nil {
+		t.Errorf("err %+v", err)
+	}
+}
+
+func TestRtmpPublish_HttpFlvPlay(t *testing.T) {
+	ctx := logger.WithContext(context.Background())
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(*srsTimeout)*time.Millisecond)
+
+	var r0, r1 error
+	err := func() error {
+		publisher := NewRTMPPublisher()
+		defer publisher.Close()
+
+		player := NewFLVPlayer()
+		defer player.Close()
+
+		// Connect to RTMP URL.
+		streamSuffix := fmt.Sprintf("rtmp-regression-%v-%v", os.Getpid(), rand.Int())
+		rtmpUrl := fmt.Sprintf("rtmp://%v/live/%v", *srsServer, streamSuffix)
+		flvUrl := fmt.Sprintf("http://%v/live/%v.flv", *srsHttpServer, streamSuffix)
+
+		if err := publisher.Publish(ctx, rtmpUrl); err != nil {
+			return err
+		}
+
+		if err := player.Play(ctx, flvUrl); err != nil {
+			return err
+		}
+
+		// Check packets.
+		var wg sync.WaitGroup
+		defer wg.Wait()
+
+		publisherReady, publisherReadyCancel := context.WithCancel(context.Background())
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			time.Sleep(30 * time.Millisecond) // Wait for publisher to push sequence header.
+			publisherReadyCancel()
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-publisherReady.Done()
+
+			var nnPackets int
+			player.onRecvHeader = func(hasAudio, hasVideo bool) error {
+				return nil
+			}
+			player.onRecvTag = func(tp flv.TagType, size, ts uint32, tag []byte) error {
+				logger.Tf(ctx, "got %v tag, %v %vms %vB", nnPackets, tp, ts, len(tag))
+				if nnPackets += 1; nnPackets > 50 {
+					cancel()
+				}
+				return nil
+			}
+			if r1 = player.Consume(ctx); r1 != nil {
+				cancel()
+			}
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			publisher.onSendPacket = func(m *rtmp.Message) error {
+				time.Sleep(1 * time.Millisecond)
+				return nil
+			}
+			if r0 = publisher.Ingest(ctx, *srsPublishAvatar); r0 != nil {
+				cancel()
+			}
+		}()
+
+		return nil
+	}()
+	if err := filterTestError(ctx.Err(), err, r0, r1); err != nil {
+		t.Errorf("err %+v", err)
+	}
+}
+
+func TestRtmpPublish_HttpFlvPlayNoAudio(t *testing.T) {
+	ctx := logger.WithContext(context.Background())
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(*srsTimeout)*time.Millisecond)
+
+	var r0, r1 error
+	err := func() error {
+		publisher := NewRTMPPublisher()
+		defer publisher.Close()
+
+		// Set publisher to drop audio.
+		publisher.hasAudio = false
+
+		player := NewFLVPlayer()
+		defer player.Close()
+
+		// Connect to RTMP URL.
+		streamSuffix := fmt.Sprintf("rtmp-regression-%v-%v", os.Getpid(), rand.Int())
+		rtmpUrl := fmt.Sprintf("rtmp://%v/live/%v", *srsServer, streamSuffix)
+		flvUrl := fmt.Sprintf("http://%v/live/%v.flv", *srsHttpServer, streamSuffix)
+
+		if err := publisher.Publish(ctx, rtmpUrl); err != nil {
+			return err
+		}
+
+		if err := player.Play(ctx, flvUrl); err != nil {
+			return err
+		}
+
+		// Check packets.
+		var wg sync.WaitGroup
+		defer wg.Wait()
+
+		publisherReady, publisherReadyCancel := context.WithCancel(context.Background())
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			time.Sleep(30 * time.Millisecond) // Wait for publisher to push sequence header.
+			publisherReadyCancel()
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-publisherReady.Done()
+
+			var nnPackets int
+			player.onRecvHeader = func(hasAudio, hasVideo bool) error {
+				return nil
+			}
+			player.onRecvTag = func(tp flv.TagType, size, ts uint32, tag []byte) error {
+				if tp == flv.TagTypeAudio {
+					return errors.New("should no audio")
+				}
+				logger.Tf(ctx, "got %v tag, %v %vms %vB", nnPackets, tp, ts, len(tag))
+				if nnPackets += 1; nnPackets > 50 {
+					cancel()
+				}
+				return nil
+			}
+			if r1 = player.Consume(ctx); r1 != nil {
+				cancel()
+			}
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			publisher.onSendPacket = func(m *rtmp.Message) error {
+				time.Sleep(1 * time.Millisecond)
+				return nil
+			}
+			if r0 = publisher.Ingest(ctx, *srsPublishAvatar); r0 != nil {
+				cancel()
+			}
+		}()
+
+		return nil
+	}()
+	if err := filterTestError(ctx.Err(), err, r0, r1); err != nil {
+		t.Errorf("err %+v", err)
+	}
+}
+
+func TestRtmpPublish_HttpFlvPlayNoVideo(t *testing.T) {
+	ctx := logger.WithContext(context.Background())
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(*srsTimeout)*time.Millisecond)
+
+	var r0, r1 error
+	err := func() error {
+		publisher := NewRTMPPublisher()
+		defer publisher.Close()
+
+		// Set publisher to drop video.
+		publisher.hasVideo = false
+
+		player := NewFLVPlayer()
+		defer player.Close()
+
+		// Connect to RTMP URL.
+		streamSuffix := fmt.Sprintf("rtmp-regression-%v-%v", os.Getpid(), rand.Int())
+		rtmpUrl := fmt.Sprintf("rtmp://%v/live/%v", *srsServer, streamSuffix)
+		flvUrl := fmt.Sprintf("http://%v/live/%v.flv", *srsHttpServer, streamSuffix)
+
+		if err := publisher.Publish(ctx, rtmpUrl); err != nil {
+			return err
+		}
+
+		if err := player.Play(ctx, flvUrl); err != nil {
+			return err
+		}
+
+		// Check packets.
+		var wg sync.WaitGroup
+		defer wg.Wait()
+
+		publisherReady, publisherReadyCancel := context.WithCancel(context.Background())
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			time.Sleep(30 * time.Millisecond) // Wait for publisher to push sequence header.
+			publisherReadyCancel()
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-publisherReady.Done()
+
+			var nnPackets int
+			player.onRecvHeader = func(hasAudio, hasVideo bool) error {
+				return nil
+			}
+			player.onRecvTag = func(tp flv.TagType, size, ts uint32, tag []byte) error {
+				if tp == flv.TagTypeVideo {
+					return errors.New("should no video")
+				}
+				logger.Tf(ctx, "got %v tag, %v %vms %vB", nnPackets, tp, ts, len(tag))
+				if nnPackets += 1; nnPackets > 50 {
+					cancel()
+				}
+				return nil
+			}
+			if r1 = player.Consume(ctx); r1 != nil {
+				cancel()
+			}
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			publisher.onSendPacket = func(m *rtmp.Message) error {
+				// Note that must greater than the cost of ffmpeg-opus, which is about 4ms, otherwise,
+				// the publisher will always get audio frames to transcode and won't accept new players
+				// connection and finally failed the case.
+				time.Sleep(5 * time.Millisecond)
+				return nil
+			}
+			if r0 = publisher.Ingest(ctx, *srsPublishAvatar); r0 != nil {
+				cancel()
+			}
+		}()
+
+		return nil
+	}()
+	if err := filterTestError(ctx.Err(), err, r0, r1); err != nil {
 		t.Errorf("err %+v", err)
 	}
 }

@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_UTEST_KERNEL_HPP
@@ -21,6 +21,7 @@
 #include <srs_kernel_ts.hpp>
 #include <srs_kernel_ps.hpp>
 #include <srs_kernel_stream.hpp>
+#include <srs_kernel_utility.hpp>
 
 class MockSrsFile
 {
@@ -37,6 +38,15 @@ public:
     virtual srs_error_t write(void* data, size_t count, ssize_t* pnwrite);
     virtual srs_error_t read(void* data, size_t count, ssize_t* pnread);
     virtual srs_error_t lseek(off_t offset, int whence, off_t* seeked);
+};
+
+class MockFileRemover
+{
+private:
+    std::string path_;
+public:
+    MockFileRemover(std::string p);
+    virtual ~MockFileRemover();
 };
 
 class MockSrsFileWriter : public SrsFileWriter
@@ -145,6 +155,8 @@ public:
     virtual void on_recover_done(srs_utime_t duration);
     MockPsHandler* clear();
 };
+
+extern int srs_rbsp_remove_emulation_bytes(SrsBuffer* stream, std::vector<uint8_t>& rbsp);
 
 #endif
 

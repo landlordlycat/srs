@@ -7,3 +7,5 @@ objs
 
 .format.txt
 .DS_Store
+*.log
+*.pcapng

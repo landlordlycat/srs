@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2022 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_APP_HTTP_CONN_HPP
@@ -67,6 +67,7 @@ protected:
     SrsHttpParser* parser;
     ISrsHttpServeMux* http_mux;
     SrsHttpCorsMux* cors;
+    SrsHttpAuthMux* auth;
     ISrsHttpConnOwner* handler_;
 protected:
     ISrsProtocolReadWriter* skt;
@@ -93,7 +94,7 @@ public:
 // Interface ISrsStartable
 public:
     virtual srs_error_t start();
-// Interface ISrsOneCycleThreadHandler
+// Interface ISrsCoroutineHandler
 public:
     virtual srs_error_t cycle();
 private:
@@ -111,6 +112,8 @@ public:
     virtual srs_error_t pull();
     // Whether enable the CORS(cross-domain).
     virtual srs_error_t set_crossdomain_enabled(bool v);
+    // Whether enable the Auth.
+    virtual srs_error_t set_auth_enabled(bool auth_enabled);
     // Whether enable the JSONP.
     virtual srs_error_t set_jsonp(bool v);
 // Interface ISrsConnection.
@@ -133,8 +136,12 @@ private:
     SrsHttpConn* conn;
     // We should never enable the stat, unless HTTP stream connection requires.
     bool enable_stat_;
+    // ssl key & cert file
+    const std::string ssl_key_file_;
+    const std::string ssl_cert_file_;
+    
 public:
-    SrsHttpxConn(bool https, ISrsResourceManager* cm, ISrsProtocolReadWriter* io, ISrsHttpServeMux* m, std::string cip, int port);
+    SrsHttpxConn(ISrsResourceManager* cm, ISrsProtocolReadWriter* io, ISrsHttpServeMux* m, std::string cip, int port, std::string key, std::string cert);
     virtual ~SrsHttpxConn();
 public:
     // Require statistic about HTTP connection, for HTTP streaming clients only.
@@ -184,8 +191,8 @@ public:
 public:
     virtual srs_error_t serve_http(ISrsHttpResponseWriter* w, ISrsHttpMessage* r);
 public:
-    virtual srs_error_t http_mount(SrsLiveSource* s, SrsRequest* r);
-    virtual void http_unmount(SrsLiveSource* s, SrsRequest* r);
+    virtual srs_error_t http_mount(SrsRequest* r);
+    virtual void http_unmount(SrsRequest* r);
 };
 
 #endif

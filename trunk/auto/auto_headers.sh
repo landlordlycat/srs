@@ -86,6 +86,12 @@ else
     srs_undefine_macro "SRS_FFMPEG_FIT" $SRS_AUTO_HEADERS_H
 fi
 
+if [[ $SRS_FFMPEG_OPUS == YES ]]; then
+    srs_define_macro "SRS_FFMPEG_OPUS" $SRS_AUTO_HEADERS_H
+else
+    srs_undefine_macro "SRS_FFMPEG_OPUS" $SRS_AUTO_HEADERS_H
+fi
+
 if [[ $SRS_H265 == YES ]]; then
     srs_define_macro "SRS_H265" $SRS_AUTO_HEADERS_H
 else
@@ -108,6 +114,12 @@ if [[ $SRS_GB28181 == YES ]]; then
     srs_define_macro "SRS_GB28181" $SRS_AUTO_HEADERS_H
 else
     srs_undefine_macro "SRS_GB28181" $SRS_AUTO_HEADERS_H
+fi
+
+if [[ $SRS_APM == YES ]]; then
+    srs_define_macro "SRS_APM" $SRS_AUTO_HEADERS_H
+else
+    srs_undefine_macro "SRS_APM" $SRS_AUTO_HEADERS_H
 fi
 
 if [[ $SRS_UTEST == YES ]]; then
@@ -149,6 +161,21 @@ if [[ $SRS_GPERF_CP == YES ]]; then
 else
     srs_undefine_macro "SRS_GPERF_CP" $SRS_AUTO_HEADERS_H
 fi
+if [ $SRS_SANITIZER == YES ]; then
+    srs_define_macro "SRS_SANITIZER" $SRS_AUTO_HEADERS_H
+else
+    srs_undefine_macro "SRS_SANITIZER" $SRS_AUTO_HEADERS_H
+fi
+if [ $SRS_SANITIZER_LOG == YES ]; then
+    srs_define_macro "SRS_SANITIZER_LOG" $SRS_AUTO_HEADERS_H
+else
+    srs_undefine_macro "SRS_SANITIZER_LOG" $SRS_AUTO_HEADERS_H
+fi
+if [ $SRS_VALGRIND == YES ]; then
+    srs_define_macro "SRS_VALGRIND" $SRS_AUTO_HEADERS_H
+else
+    srs_undefine_macro "SRS_VALGRIND" $SRS_AUTO_HEADERS_H
+fi
 
 #####################################################################################
 # for embeded.
@@ -173,6 +200,11 @@ if [[ $SRS_SINGLE_THREAD == YES ]]; then
     srs_define_macro "SRS_SINGLE_THREAD" $SRS_AUTO_HEADERS_H
 else
     srs_undefine_macro "SRS_SINGLE_THREAD" $SRS_AUTO_HEADERS_H
+fi
+if [[ $SRS_SIGNAL_API == YES ]]; then
+    srs_define_macro "SRS_SIGNAL_API" $SRS_AUTO_HEADERS_H
+else
+    srs_undefine_macro "SRS_SIGNAL_API" $SRS_AUTO_HEADERS_H
 fi
 if [[ $SRS_LOG_LEVEL_V2 == YES ]]; then
     srs_define_macro "SRS_LOG_LEVEL_V2" $SRS_AUTO_HEADERS_H
